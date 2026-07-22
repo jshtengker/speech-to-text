@@ -1,8 +1,5 @@
 import { TranscribeOptions, TranscribeResponse } from '@/types';
 
-/**
- * Uploads a media file for background transcription.
- */
 export async function submitTranscriptionJob(
   file: File,
   options: TranscribeOptions = {}
