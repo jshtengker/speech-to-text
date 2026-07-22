@@ -13,6 +13,12 @@ class Settings:
 
     CORS_ORIGINS: List[str] = ["*"]
 
+    MAX_UPLOAD_SIZE_BYTES: int = 2 * 1024 * 1024 * 1024  # 2 GB
+    ALLOWED_EXTENSIONS: set = {
+        ".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg", ".opus", ".wma",
+        ".mp4", ".mkv", ".mov", ".webm", ".avi", ".flv"
+    }
+
     SUPPORTED_MODELS: Dict[str, Dict[str, Any]] = {
         "turbo": {"name": "Turbo", "vram": "~1.8 GB", "description": "Fast & high precision (Recommended)", "default": True},
         "large-v3": {"name": "Large v3", "vram": "~3.0 GB", "description": "Maximum accuracy for accents & technical terms", "default": False},
