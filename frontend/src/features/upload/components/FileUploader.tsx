@@ -3,6 +3,7 @@ import { Upload, FileAudio, FileVideo, Settings2, AlertCircle, Play } from 'luci
 import { TranscribeResponse } from '@/types';
 import { LANGUAGES } from '../constants/languages';
 import { WHISPER_MODELS } from '../constants/models';
+import { ALLOWED_EXTENSIONS, MAX_FILE_SIZE_BYTES, ACCEPT_FILE_TYPES } from '../constants/files';
 import { submitTranscriptionJob } from '../api/submitJob';
 
 interface FileUploaderProps {
@@ -49,8 +50,23 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onJobStarted, disabl
     }
   };
 
+
   const validateAndSetFile = (file: File) => {
     setUploadError(null);
+    const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      setSelectedFile(null);
+      setUploadError(`Unsupported file format (${ext}). Supported formats: ${ALLOWED_EXTENSIONS.join(', ')}.`);
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      setSelectedFile(null);
+      setUploadError(`File size (${formatFileSize(file.size)}) exceeds the maximum allowed limit of 2 GB.`);
+      return;
+    }
+
     setSelectedFile(file);
   };
 
@@ -192,7 +208,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onJobStarted, disabl
         <input
           ref={fileInputRef}
           type="file"
-          accept="audio/*,video/*,.mp3,.wav,.m4a,.flac,.aac,.ogg,.webm,.mp4,.mkv,.mov"
+          accept={ACCEPT_FILE_TYPES}
           onChange={handleChange}
           className="hidden"
           disabled={disabled || isUploading}
@@ -224,7 +240,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onJobStarted, disabl
               Drag & drop your audio or video file here
             </p>
             <p className="text-xs text-[#a39b91] mb-4">
-              Supports MP3, WAV, M4A, FLAC, MP4, MKV, WEBM (Up to 2GB+)
+              Supports MP3, WAV, M4A, FLAC, MP4, MKV, WEBM, MOV (Max 2GB)
             </p>
             <span className="inline-block px-4 py-1.5 rounded-xl bg-[#c8864a]/15 text-[#e6b88a] border border-[#c8864a]/30 text-xs font-semibold shadow-sm">
               Browse Files

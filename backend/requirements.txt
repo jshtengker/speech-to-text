@@ -4,3 +4,8 @@ python-multipart>=0.0.6
 pydantic>=2.0.0
 sse-starlette>=1.6.0
 faster-whisper>=1.0.0
+transformers>=4.30.0
+torch>=2.0.0
+sentencepiece>=0.1.99
+httpx>=0.24.0
+

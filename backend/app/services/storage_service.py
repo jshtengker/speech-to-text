@@ -8,10 +8,37 @@ class StorageService:
     @staticmethod
     async def save_upload_file(file: UploadFile, job_id: str) -> Path:
         safe_filename = file.filename or "uploaded_media"
+        file_ext = Path(safe_filename).suffix.lower()
+
+        if file_ext not in settings.ALLOWED_EXTENSIONS:
+            allowed_str = ", ".join(sorted(settings.ALLOWED_EXTENSIONS))
+            raise HTTPException(
+                status_code=400,
+                detail=f"Unsupported file extension '{file_ext}'. Allowed extensions: {allowed_str}"
+            )
+
         temp_media_path = settings.UPLOADS_DIR / f"{job_id}_{safe_filename}"
-        with open(temp_media_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
+        chunk_size = 1024 * 1024  # 1 MB chunks
+        written_bytes = 0
+
+        try:
+            with open(temp_media_path, "wb") as buffer:
+                while chunk := await file.read(chunk_size):
+                    written_bytes += len(chunk)
+                    if written_bytes > settings.MAX_UPLOAD_SIZE_BYTES:
+                        raise HTTPException(
+                            status_code=413,
+                            detail=f"File size exceeds maximum allowed limit of {settings.MAX_UPLOAD_SIZE_BYTES // (1024 * 1024 * 1024)} GB."
+                        )
+                    buffer.write(chunk)
+        except Exception:
+            if temp_media_path.exists():
+                try:
+                    os.remove(temp_media_path)
+                except Exception:
+                    pass
+            raise
+
         return temp_media_path
 
     @staticmethod
