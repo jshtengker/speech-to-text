@@ -8,4 +8,6 @@ transformers>=4.30.0
 torch>=2.0.0
 sentencepiece>=0.1.99
 httpx>=0.24.0
+python-dotenv>=1.0.0
+
 

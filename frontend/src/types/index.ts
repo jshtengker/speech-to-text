@@ -63,3 +63,37 @@ export interface WhisperModelInfo {
   description: string;
   default: boolean;
 }
+
+export interface LanguageOption {
+  code: string;
+  name: string;
+}
+
+export interface DeepLUsageInfo {
+  character_count: number;
+  character_limit: number;
+  remaining_characters: number;
+  percent_remaining: number;
+}
+
+export interface EngineOption {
+  id: string;
+  name: string;
+  status: 'available' | 'unconfigured' | 'active';
+  usage?: DeepLUsageInfo | null;
+}
+
+export interface SupportedLanguagesResponse {
+  languages: LanguageOption[];
+  engines: EngineOption[];
+}
+
+export interface TranslationResponse {
+  job_id: string;
+  target_language: string;
+  target_language_name: string;
+  engine_selected: string;
+  engine_used: string;
+  segments: TranscriptSegment[];
+}
+

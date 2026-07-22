@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, FileAudio, FileVideo, Settings2, AlertCircle, Play } from 'lucide-react';
+import { Upload, FileAudio, FileVideo, Settings2, AlertCircle, Play, X } from 'lucide-react';
 import { TranscribeResponse } from '@/types';
 import { LANGUAGES } from '../constants/languages';
 import { WHISPER_MODELS } from '../constants/models';
@@ -50,7 +50,6 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onJobStarted, disabl
     }
   };
 
-
   const validateAndSetFile = (file: File) => {
     setUploadError(null);
     const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
@@ -100,6 +99,14 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onJobStarted, disabl
   };
 
   const isVideo = selectedFile?.type.startsWith('video/');
+
+  const handleDischargeFile = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   return (
     <div className="glass-panel rounded-2xl p-6 sm:p-8 shadow-2xl border border-[#2b2823] transition-all duration-300">
@@ -215,20 +222,29 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onJobStarted, disabl
         />
 
         {selectedFile ? (
-          <div className="flex flex-col items-center animate-fade-in">
+          <div className="flex flex-col items-center animate-fade-in relative pt-1">
+            <button
+              type="button"
+              onClick={handleDischargeFile}
+              className="absolute -top-4 -right-4 p-2 rounded-full bg-[#201e1b] border border-[#2b2823] text-[#a39b91] hover:text-rose-400 hover:border-rose-500/50 hover:bg-rose-500/10 transition-all cursor-pointer shadow-lg group/x"
+              title="Discharge selected file"
+            >
+              <X className="w-4 h-4 transition-transform group-hover/x:scale-110" />
+            </button>
+
             <div className="w-14 h-14 rounded-2xl bg-[#c8864a]/15 text-[#c8864a] flex items-center justify-center mb-3 border border-[#c8864a]/30 shadow-md shadow-[#c8864a]/10">
               {isVideo ? <FileVideo className="w-7 h-7" /> : <FileAudio className="w-7 h-7" />}
             </div>
             <p className="text-sm font-bold text-[#fceade] mb-1 truncate max-w-md">{selectedFile.name}</p>
             <p className="text-xs text-[#a39b91] mb-3">{formatFileSize(selectedFile.size)} • {selectedFile.type || 'Media File'}</p>
+            
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setSelectedFile(null);
-              }}
-              className="text-xs text-rose-400 hover:text-rose-300 underline font-medium cursor-pointer"
+              type="button"
+              onClick={handleDischargeFile}
+              className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 hover:bg-rose-500/20 transition-all font-medium cursor-pointer"
             >
-              Choose a different file
+              <X className="w-3.5 h-3.5 text-rose-400" />
+              <span>Discharge / Choose a different file</span>
             </button>
           </div>
         ) : (

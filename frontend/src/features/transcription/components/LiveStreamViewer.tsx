@@ -1,7 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Activity, Clock, AlertTriangle, Globe, Radio, Download, XCircle, Cpu } from 'lucide-react';
+import { Activity, Clock, AlertTriangle, Globe, Radio, Download, XCircle, Cpu, Square } from 'lucide-react';
 import { useTranscriptionStream } from '../hooks/useTranscriptionStream';
 import { cancelJob } from '../api/transcriptionApi';
+
+const formatDisplayTime = (seconds: number): string => {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+
+  if (h > 0) {
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  }
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+};
 
 interface LiveStreamViewerProps {
   jobId: string;
@@ -85,16 +96,16 @@ export const LiveStreamViewer: React.FC<LiveStreamViewerProps> = ({ jobId, filen
             </div>
           )}
 
-          {isCanCancel && (
+          {isCanCancel ? (
             <button
               onClick={handleCancel}
               disabled={isCancelling}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-800/60 bg-rose-950/30 text-rose-300 hover:bg-rose-900/40 text-[11px] font-semibold transition-all cursor-pointer disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-semibold hover:bg-rose-500/25 transition-all cursor-pointer disabled:opacity-50"
             >
-              <XCircle className="w-3.5 h-3.5 text-rose-400" />
+              <Square className="w-3.5 h-3.5 fill-rose-300" />
               <span>{isCancelling ? 'Cancelling...' : 'Cancel'}</span>
             </button>
-          )}
+          ) : null}
 
           <button
             onClick={() => setAutoScroll(!autoScroll)}
@@ -142,7 +153,7 @@ export const LiveStreamViewer: React.FC<LiveStreamViewerProps> = ({ jobId, filen
           segments.map((seg) => (
             <div key={seg.index} className="flex items-start gap-3 hover:bg-[#181614] p-2 rounded-lg transition-colors group border border-transparent hover:border-[#2b2823]">
               <span className="px-2 py-0.5 rounded-md bg-[#201e1b] text-[#c8864a] text-[10px] font-mono border border-[#2b2823] shrink-0 font-medium">
-                [{seg.start.toFixed(2)}s → {seg.end.toFixed(2)}s]
+                [{formatDisplayTime(seg.start)} → {formatDisplayTime(seg.end)}]
               </span>
               <span className="text-[#e6e2dd] group-hover:text-white transition-colors leading-relaxed">{seg.text}</span>
             </div>

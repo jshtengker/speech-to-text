@@ -55,9 +55,7 @@ export function useTranscriptionStream(jobId: string, onCompleted?: () => void) 
         try {
           const data = JSON.parse(msgEvent.data);
           setErrorMsg(data.error || 'Transcription stream error');
-        } catch {
-          /* ignore */
-        }
+        } catch {}
       }
     });
 

@@ -18,7 +18,7 @@ class StorageService:
             )
 
         temp_media_path = settings.UPLOADS_DIR / f"{job_id}_{safe_filename}"
-        chunk_size = 1024 * 1024  # 1 MB chunks
+        chunk_size = 1024 * 1024
         written_bytes = 0
 
         try:
@@ -60,13 +60,18 @@ class StorageService:
                     pass
 
     @staticmethod
-    def get_output_file(job_id: str, file_type: str) -> Path:
+    def get_output_file(job_id: str, file_type: str, lang: Optional[str] = None) -> Path:
         if file_type not in ["txt", "srt"]:
             raise HTTPException(status_code=400, detail="Invalid file type. Must be 'txt' or 'srt'.")
         
-        target_file = settings.OUTPUTS_DIR / f"{job_id}.{file_type}"
+        if lang and lang.strip():
+            target_file = settings.OUTPUTS_DIR / f"{job_id}_{lang.strip().upper()}.{file_type}"
+        else:
+            target_file = settings.OUTPUTS_DIR / f"{job_id}.{file_type}"
+
         if not target_file.exists():
             raise HTTPException(status_code=404, detail=f"Requested {file_type.upper()} file is not available.")
         return target_file
+
 
 storage_service = StorageService()

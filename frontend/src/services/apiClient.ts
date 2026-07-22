@@ -19,3 +19,26 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
 
   return response.json();
 }
+
+export async function translateTranscript(
+  jobId: string,
+  targetLanguage: string,
+  engine: string = 'auto'
+) {
+  return apiFetch<import('../types').TranslationResponse>('/api/translate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      job_id: jobId,
+      target_language: targetLanguage,
+      engine: engine,
+    }),
+  });
+}
+
+export async function getTranslationLanguages() {
+  return apiFetch<import('../types').SupportedLanguagesResponse>('/api/translate/languages');
+}
+
