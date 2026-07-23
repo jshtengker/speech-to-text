@@ -50,7 +50,7 @@ class GroqTranscriptionService:
             return
 
         try:
-            from groq import Groq, RateLimitError, APIError
+            from groq import Groq, RateLimitError, APIError, APIStatusError
         except ImportError:
             ipc_queue.put({
                 "event": "status",
@@ -64,9 +64,11 @@ class GroqTranscriptionService:
         try:
             ipc_queue.put({"event": "status", "data": {"status": "processing"}})
             start_time = time.time()
+            outputs_dir = Path(outputs_dir_str)
+            media_path = Path(media_path_str)
 
             client = Groq(api_key=settings.GROQ_API_KEY.strip())
-            media_path = Path(media_path_str)
+
 
             with open(media_path, "rb") as file_obj:
                 extra_args = {}
