@@ -85,8 +85,16 @@ class Settings:
     }
 
     def __init__(self):
-        self.UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
-        self.OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            self.UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+            self.OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            import tempfile
+            tmp = Path(tempfile.gettempdir())
+            self.UPLOADS_DIR = tmp / "speech_to_text_uploads"
+            self.OUTPUTS_DIR = tmp / "speech_to_text_outputs"
+            self.UPLOADS_DIR.mkdir(parents=True, exist_ok=True)
+            self.OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
 
 settings = Settings()
 
