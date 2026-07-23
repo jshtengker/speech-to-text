@@ -153,11 +153,15 @@ def get_job_status(job_id: str):
 
 @router.post("/jobs/{job_id}/cancel", response_model=JobCancelResponse)
 def cancel_job(job_id: str):
-    """Cancels an active transcription job and forcefully terminates the GPU worker process."""
+    """Cancels an active transcription job and forcefully terminates worker process."""
     job_info = job_repo.get_job(job_id)
     if not job_info:
-        raise HTTPException(status_code=404, detail="Job not found")
-    
+        return JobCancelResponse(
+            message="Job is no longer active or already finished.",
+            job_id=job_id,
+            status="cancelled"
+        )
+
     current_status = job_info.get("status")
     if current_status in ["completed", "failed", "cancelled"]:
         return JobCancelResponse(
@@ -165,36 +169,26 @@ def cancel_job(job_id: str):
             job_id=job_id,
             status=current_status
         )
-    
+
     job_info["status"] = "cancelled"
-    
+
     proc = job_repo.active_processes.get(job_id)
     if proc and proc.is_alive():
-        print(f"--> Instantly terminating GPU worker process for job '{job_id}' (PID: {proc.pid})...")
-        proc.terminate()
-        proc.join(timeout=1)
-        if proc.is_alive():
-            proc.kill()
-        job_repo.active_processes.pop(job_id, None)
-    
-    if job_id in job_repo.job_queues:
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                asyncio.run_coroutine_threadsafe(
-                    job_repo.job_queues[job_id].put({"event": "status", "data": {"status": "cancelled"}}),
-                    loop
-                )
+            print(f"--> Instantly terminating process for job '{job_id}' (PID: {proc.pid})...")
+            proc.terminate()
+            proc.join(timeout=1)
         except Exception:
             pass
 
     storage_service.cleanup_job_outputs(job_id)
 
     return JobCancelResponse(
-        message="Job cancelled and GPU process terminated.",
+        message="Job cancelled successfully.",
         job_id=job_id,
         status="cancelled"
     )
+
 
 @router.get("/jobs/{job_id}/segments", response_model=SegmentPaginatedResponse)
 def get_job_segments(

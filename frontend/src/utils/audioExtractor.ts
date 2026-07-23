@@ -1,6 +1,6 @@
 /**
  * Dynamically extracts and compresses audio tracks from heavy video files (e.g. 1.4GB 1080p movies)
- * into lightweight speech WAV audio files (<28 MB) directly inside browser memory.
+ * into lightweight speech WAV audio files (<20 MB) directly inside browser memory.
  */
 export async function extractAudioFromMedia(
   file: File,
@@ -21,25 +21,25 @@ export async function extractAudioFromMedia(
     const audioCtx = new AudioContextClass();
     const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
-    const duration = decodedBuffer.duration;
+    let renderDuration = decodedBuffer.duration;
+    // Cap to max 45 minutes (2700s) to guarantee WAV payload stays strictly under Groq's 25 MB limit
+    if (renderDuration > 2700) {
+      renderDuration = 2700;
+    }
 
-    // Dynamically scale sample rate & bit depth to guarantee output WAV is < 20 MB (Groq API limit is 25 MB)
+    // Use ONLY standard sample rates (16000Hz or 8000Hz) for Whisper/Groq API compatibility
     let targetSampleRate = 16000;
     let bitDepth: 8 | 16 = 16;
 
-    if (duration > 3000) { // > 50 minutes (e.g. 1 hour full movie episode)
-      targetSampleRate = 6000;
-      bitDepth = 8;
-    } else if (duration > 1500) { // 25 to 50 minutes (e.g. 45 min TV episode)
+    if (renderDuration > 1200) { // > 20 minutes (e.g. 45 min TV episode)
       targetSampleRate = 8000;
       bitDepth = 8;
-    } else if (duration > 600) { // 10 to 25 minutes
+    } else if (renderDuration > 600) { // 10 to 20 minutes
       targetSampleRate = 8000;
       bitDepth = 16;
     }
 
-
-    const numberOfFrames = Math.ceil(duration * targetSampleRate);
+    const numberOfFrames = Math.ceil(renderDuration * targetSampleRate);
     const offlineCtx = new OfflineAudioContext(1, numberOfFrames, targetSampleRate);
     const source = offlineCtx.createBufferSource();
     source.buffer = decodedBuffer;
