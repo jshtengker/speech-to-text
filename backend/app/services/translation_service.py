@@ -136,7 +136,7 @@ class MetaNLLBTranslationProvider(BaseTranslationProvider):
         self._lock = asyncio.Lock()
 
     def is_configured(self) -> bool:
-        return True
+        return settings.ENABLE_LOCAL_MODELS
 
     def _load_model_sync(self):
         if self._model is not None and self._tokenizer is not None:

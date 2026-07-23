@@ -43,3 +43,7 @@ export async function getTranslationLanguages() {
   return apiFetch<import('../types').SupportedLanguagesResponse>('/api/translate/languages');
 }
 
+export async function fetchSupportedModels() {
+  return apiFetch<import('../types').ModelListResponse>('/api/models');
+}
+

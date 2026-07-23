@@ -14,6 +14,7 @@ from app.schemas.segment import SegmentPaginatedResponse, SegmentItem
 from app.services.job_service import job_repo
 from app.services.storage_service import storage_service
 from app.services.whisper_service import run_whisper_worker, monitor_job_process
+from app.services.groq_service import groq_service
 
 router = APIRouter(tags=["Transcription"])
 
@@ -30,7 +31,16 @@ async def create_transcription_job(
     job_id = str(uuid.uuid4())
     temp_media_path = await storage_service.save_upload_file(file, job_id)
     safe_filename = file.filename or "uploaded_media"
-    selected_model = model if model in settings.SUPPORTED_MODELS else "turbo"
+
+    supported_models = settings.SUPPORTED_MODELS
+    selected_model = model if model in supported_models else ("groq-large-v3" if not settings.ENABLE_LOCAL_MODELS else "turbo")
+
+    # Validate model selection against Cloud Mode restrictions
+    if not settings.ENABLE_LOCAL_MODELS and selected_model != "groq-large-v3":
+        raise HTTPException(
+            status_code=400,
+            detail="Local PyTorch Whisper models are disabled on this cloud deployment instance. Please select 'Groq Cloud (Whisper Large-v3)'."
+        )
 
     job_data = {
         "job_id": job_id,
@@ -55,9 +65,20 @@ async def create_transcription_job(
     main_loop = asyncio.get_running_loop()
 
     ipc_queue = multiprocessing.Queue()
-    proc = multiprocessing.Process(
-        target=run_whisper_worker,
-        args=(
+    
+    # Route job to Groq Cloud Service or Local Whisper Worker
+    if selected_model == "groq-large-v3":
+        target_func = groq_service.run_transcription
+        target_args = (
+            job_id,
+            str(temp_media_path),
+            language if language and language.strip() else None,
+            ipc_queue,
+            str(settings.OUTPUTS_DIR)
+        )
+    else:
+        target_func = run_whisper_worker
+        target_args = (
             job_id,
             str(temp_media_path),
             selected_model,
@@ -67,7 +88,8 @@ async def create_transcription_job(
             ipc_queue,
             str(settings.OUTPUTS_DIR)
         )
-    )
+
+    proc = multiprocessing.Process(target=target_func, args=target_args)
     proc.start()
     job_repo.active_processes[job_id] = proc
 

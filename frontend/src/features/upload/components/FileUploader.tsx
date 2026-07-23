@@ -1,10 +1,11 @@
-import React, { useState, useRef } from 'react';
-import { Upload, FileAudio, FileVideo, Settings2, AlertCircle, Play, X } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Upload, FileAudio, FileVideo, Settings2, AlertCircle, Play, X, Zap } from 'lucide-react';
 import { TranscribeResponse } from '@/types';
 import { LANGUAGES } from '../constants/languages';
-import { WHISPER_MODELS } from '../constants/models';
+import { WHISPER_MODELS, WhisperModel } from '../constants/models';
 import { ALLOWED_EXTENSIONS, MAX_FILE_SIZE_BYTES, ACCEPT_FILE_TYPES } from '../constants/files';
 import { submitTranscriptionJob } from '../api/submitJob';
+import { fetchSupportedModels } from '@/services/apiClient';
 
 interface FileUploaderProps {
   onJobStarted: (job: TranscribeResponse) => void;
@@ -14,13 +15,46 @@ interface FileUploaderProps {
 export const FileUploader: React.FC<FileUploaderProps> = ({ onJobStarted, disabled }) => {
   const [dragActive, setDragActive] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [availableModels, setAvailableModels] = useState<WhisperModel[]>(WHISPER_MODELS);
   const [model, setModel] = useState('turbo');
+  const [groqConfigured, setGroqConfigured] = useState<boolean>(false);
   const [language, setLanguage] = useState('');
   const [vadFilter, setVadFilter] = useState(true);
   const [beamSize, setBeamSize] = useState(5);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchSupportedModels()
+      .then((data) => {
+        if (!isMounted || !data.models || data.models.length === 0) return;
+        const formatted: WhisperModel[] = data.models.map((m) => ({
+          id: m.id,
+          name: m.name,
+          vram: m.vram,
+          description: m.description,
+          default: m.default,
+          is_cloud: m.is_cloud,
+        }));
+        setAvailableModels(formatted);
+        if (data.groq_configured !== undefined) {
+          setGroqConfigured(data.groq_configured);
+        }
+        const defaultModel = formatted.find((m) => m.default) || formatted[0];
+        if (defaultModel) {
+          setModel(defaultModel.id);
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to fetch supported models from backend, using fallback:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -134,13 +168,25 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onJobStarted, disabl
       {showSettings && (
         <div className="mb-6 p-4 rounded-xl bg-[#181614]/90 border border-[#2b2823] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs animate-fade-in">
           <div>
-            <label className="block text-[#e6e2dd] font-medium mb-1.5">AI Whisper Model</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[#e6e2dd] font-medium">AI Whisper Model</label>
+              {model === 'groq-large-v3' && (
+                <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded border ${
+                  groqConfigured 
+                    ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' 
+                    : 'text-amber-400 bg-amber-400/10 border-amber-400/20'
+                }`}>
+                  <Zap className="w-3 h-3" />
+                  {groqConfigured ? 'Groq Active' : 'Cloud Engine'}
+                </span>
+              )}
+            </div>
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
               className="w-full bg-[#0d0c0a] border border-[#2b2823] rounded-xl px-3 py-2 text-[#e6e2dd] focus:outline-none focus:border-[#c8864a] transition-colors cursor-pointer"
             >
-              {WHISPER_MODELS.map((m) => (
+              {availableModels.map((m) => (
                 <option key={m.id} value={m.id}>
                   {m.name} ({m.vram})
                 </option>
