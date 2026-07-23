@@ -2,9 +2,13 @@ export interface WhisperModel {
   id: string;
   name: string;
   vram: string;
+  description?: string;
+  default?: boolean;
+  is_cloud?: boolean;
 }
 
 export const WHISPER_MODELS: WhisperModel[] = [
+  { id: 'groq-large-v3', name: 'Groq Cloud (Whisper Large-v3)', vram: 'Cloud API (Ultra Fast)', is_cloud: true },
   { id: 'turbo', name: 'Turbo (Recommended)', vram: '~1.8 GB VRAM' },
   { id: 'large-v3', name: 'Large v3', vram: '~3.0 GB VRAM' },
   { id: 'medium', name: 'Medium', vram: '~1.5 GB VRAM' },

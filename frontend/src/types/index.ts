@@ -62,6 +62,13 @@ export interface WhisperModelInfo {
   vram: string;
   description: string;
   default: boolean;
+  is_cloud?: boolean;
+}
+
+export interface ModelListResponse {
+  models: WhisperModelInfo[];
+  groq_configured?: boolean;
+  enable_local_models?: boolean;
 }
 
 export interface LanguageOption {
