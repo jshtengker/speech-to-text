@@ -4,6 +4,8 @@ import json
 import asyncio
 import multiprocessing
 from typing import Optional
+from pathlib import Path
+
 
 from fastapi import APIRouter, UploadFile, File, Form, Query, BackgroundTasks, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -33,20 +35,12 @@ async def create_transcription_job(
         raise HTTPException(status_code=400, detail="Either an uploaded file or file_url must be provided.")
 
     job_id = str(uuid.uuid4())
-<<<<<<< Updated upstream
-    temp_media_path = await storage_service.save_upload_file(file, job_id)
-    safe_filename = file.filename or "uploaded_media"
-<<<<<<< HEAD
-=======
-    selected_model = model if model in settings.SUPPORTED_MODELS else "turbo"
-=======
     if file_url and file_url.strip():
         temp_media_path = await storage_service.save_url_file(file_url.strip(), job_id)
         safe_filename = Path(temp_media_path).name
     else:
         temp_media_path = await storage_service.save_upload_file(file, job_id)
         safe_filename = file.filename or "uploaded_media"
->>>>>>> dad4db8 (add: supabase storage configs)
 
     supported_models = settings.SUPPORTED_MODELS
     selected_model = model if model in supported_models else ("groq-large-v3" if not settings.ENABLE_LOCAL_MODELS else "turbo")
@@ -57,10 +51,7 @@ async def create_transcription_job(
             status_code=400,
             detail="Local PyTorch Whisper models are disabled on this cloud deployment instance. Please select 'Groq Cloud (Whisper Large-v3)'."
         )
-<<<<<<< HEAD
-=======
->>>>>>> Stashed changes
->>>>>>> dad4db8 (add: supabase storage configs)
+
 
     job_data = {
         "job_id": job_id,
