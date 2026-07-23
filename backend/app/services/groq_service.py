@@ -183,13 +183,35 @@ class GroqTranscriptionService:
                 }
             })
         except Exception as e:
-            logger.error(f"Groq API transcription error for job {job_id}: {e}")
+            err_msg = f"Groq API Error ({type(e).__name__}): {str(e)}"
+            logger.error(f"Groq API transcription error for job {job_id}: {err_msg}")
+
+            json_path = outputs_dir / f"{job_id}.json"
+            failed_job_data = {
+                "job_id": job_id,
+                "filename": Path(media_path).name if 'media_path' in locals() else "media_file",
+                "model": "groq-large-v3",
+                "status": "failed",
+                "created_at": start_time if 'start_time' in locals() else time.time(),
+                "completed_at": time.time(),
+                "error": err_msg,
+                "total_segments": 0,
+                "segments": [],
+                "downloads": {}
+            }
+            try:
+                with open(json_path, "w", encoding="utf-8") as f_json:
+                    json.dump(failed_job_data, f_json, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+
             ipc_queue.put({
                 "event": "status",
                 "data": {
                     "status": "failed",
-                    "error": f"Groq API transcription error: {str(e)}"
+                    "error": err_msg
                 }
             })
+
 
 groq_service = GroqTranscriptionService()

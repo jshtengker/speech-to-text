@@ -76,20 +76,36 @@ async def create_transcription_job(
     main_loop = asyncio.get_running_loop()
 
     import queue
-    import threading
 
-    # Route job to Groq Cloud Service or Local Whisper Worker
+    # Route job to Groq Cloud Service (synchronous serverless execution) or Local Whisper Worker
     if selected_model == "groq-large-v3":
         ipc_queue = queue.Queue()
-        target_func = groq_service.run_transcription
-        target_args = (
+        # Execute Groq API directly in serverless thread context (~1.5s total time)
+        await asyncio.to_thread(
+            groq_service.run_transcription,
             job_id,
             str(temp_media_path),
             language if language and language.strip() else None,
             ipc_queue,
             str(settings.OUTPUTS_DIR)
         )
-        proc = threading.Thread(target=target_func, args=target_args)
+        storage_service.cleanup_file(temp_media_path)
+
+        completed_job = job_repo.get_job(job_id)
+        final_status = completed_job.get("status", "completed") if completed_job else "completed"
+        err_detail = completed_job.get("error") if completed_job else None
+
+        if final_status == "failed" and err_detail:
+            raise HTTPException(status_code=400, detail=err_detail)
+
+        return JobSubmitResponse(
+            job_id=job_id,
+            filename=safe_filename,
+            model=selected_model,
+            status=final_status,
+            message="Groq Cloud transcription completed successfully."
+        )
+
     else:
         ipc_queue = multiprocessing.Queue()
         target_func = run_whisper_worker
@@ -104,25 +120,25 @@ async def create_transcription_job(
             str(settings.OUTPUTS_DIR)
         )
         proc = multiprocessing.Process(target=target_func, args=target_args)
+        proc.start()
+        job_repo.active_processes[job_id] = proc
 
-    proc.start()
-    job_repo.active_processes[job_id] = proc
+        background_tasks.add_task(
+            monitor_job_process,
+            job_id=job_id,
+            media_path=temp_media_path,
+            ipc_queue=ipc_queue,
+            main_loop=main_loop
+        )
 
-    background_tasks.add_task(
-        monitor_job_process,
-        job_id=job_id,
-        media_path=temp_media_path,
-        ipc_queue=ipc_queue,
-        main_loop=main_loop
-    )
+        return JobSubmitResponse(
+            job_id=job_id,
+            filename=safe_filename,
+            model=selected_model,
+            status="pending",
+            message="Transcription job submitted successfully."
+        )
 
-    return JobSubmitResponse(
-        job_id=job_id,
-        filename=safe_filename,
-        model=selected_model,
-        status="pending",
-        message="Transcription job queued successfully."
-    )
 
 @router.get("/jobs/{job_id}", response_model=JobStatusResponse)
 def get_job_status(job_id: str):

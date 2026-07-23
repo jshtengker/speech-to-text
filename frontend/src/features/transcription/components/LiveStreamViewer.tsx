@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Activity, Clock, AlertTriangle, Globe, Radio, Download, XCircle, Cpu, Square } from 'lucide-react';
+import { Activity, Clock, AlertTriangle, Globe, Radio, Download, XCircle, Cpu, Square, CheckCircle2 } from 'lucide-react';
 import { useTranscriptionStream } from '../hooks/useTranscriptionStream';
 import { cancelJob } from '../api/transcriptionApi';
+
 
 const formatDisplayTime = (seconds: number): string => {
   const h = Math.floor(seconds / 3600);
@@ -128,8 +129,20 @@ export const LiveStreamViewer: React.FC<LiveStreamViewerProps> = ({ jobId, filen
             <p className="text-xs text-rose-300 font-bold">Cancelled</p>
             <p className="text-[11px] text-[#a39b91]">Transcription processing was stopped by user request.</p>
           </div>
-        ) : segments.length === 0 && !errorMsg ? (
-          status === 'loading_model' ? (
+        ) : status === 'failed' || errorMsg ? (
+          <div className="h-full flex flex-col items-center justify-center text-rose-300 gap-2 animate-fade-in p-4 text-center">
+            <AlertTriangle className="w-8 h-8 text-rose-400 mb-1" />
+            <p className="text-xs text-rose-300 font-bold">Transcription Failed</p>
+            <p className="text-[11px] text-rose-300/80">{errorMsg || 'An error occurred during transcription.'}</p>
+          </div>
+        ) : segments.length === 0 ? (
+          status === 'completed' ? (
+            <div className="h-full flex flex-col items-center justify-center text-[#a39b91] gap-2 animate-fade-in">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400 mb-1" />
+              <p className="text-xs text-emerald-300 font-bold">Completed</p>
+              <p className="text-[11px] text-[#a39b91]">Transcription finished. No spoken speech audio was detected in file.</p>
+            </div>
+          ) : status === 'loading_model' ? (
             isDownloading ? (
               <div className="h-full flex flex-col items-center justify-center text-[#a39b91] gap-3 animate-fade-in">
                 <Download className="w-6 h-6 animate-bounce text-amber-400" />
@@ -146,7 +159,7 @@ export const LiveStreamViewer: React.FC<LiveStreamViewerProps> = ({ jobId, filen
           ) : (
             <div className="h-full flex flex-col items-center justify-center text-[#a39b91] gap-3">
               <Activity className="w-6 h-6 animate-spin text-[#c8864a]" />
-              <p className="text-xs">Initializing Faster-Whisper neural pipeline and VAD filter...</p>
+              <p className="text-xs">Processing speech transcription...</p>
             </div>
           )
         ) : (
@@ -160,12 +173,6 @@ export const LiveStreamViewer: React.FC<LiveStreamViewerProps> = ({ jobId, filen
           ))
         )}
 
-        {errorMsg && (
-          <div className="p-3 rounded-xl bg-rose-950/40 border border-rose-800/50 text-rose-300 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
-            <span>Error: {errorMsg}</span>
-          </div>
-        )}
       </div>
     </div>
   );
