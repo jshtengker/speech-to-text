@@ -13,9 +13,14 @@ export function App() {
 
   const handleJobStarted = (job: TranscribeResponse) => {
     setActiveJob(job);
-    setJobCompleted(false);
+    if (job.status === 'completed') {
+      setJobCompleted(true);
+    } else {
+      setJobCompleted(false);
+    }
     setJobCancelled(false);
   };
+
 
   const handleJobCompleted = () => {
     setJobCompleted(true);

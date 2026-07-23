@@ -12,7 +12,23 @@ export function useTranscriptionStream(jobId: string, onCompleted?: () => void) 
   useEffect(() => {
     if (!jobId) return;
 
+    let isMounted = true;
     const baseUrl = import.meta.env.VITE_API_BASE_URL || '';
+
+    // Check REST status immediately for completed synchronous jobs
+    fetch(`${baseUrl}/api/jobs/${jobId}`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!isMounted || !data) return;
+        if (data.status === 'completed' || data.status === 'failed') {
+          setStatus(data.status);
+          if (data.execution_time) setExecutionTime(data.execution_time);
+          if (data.error) setErrorMsg(data.error);
+          if (data.status === 'completed' && onCompleted) onCompleted();
+        }
+      })
+      .catch(() => {});
+
     const eventSource = new EventSource(`${baseUrl}/api/jobs/${jobId}/stream`);
 
     eventSource.addEventListener('status', (e: Event) => {
@@ -49,19 +65,22 @@ export function useTranscriptionStream(jobId: string, onCompleted?: () => void) 
       if (onCompleted) onCompleted();
     });
 
-    eventSource.addEventListener('error', (e: Event) => {
-      const msgEvent = e as MessageEvent;
-      if (msgEvent.data) {
-        try {
-          const data = JSON.parse(msgEvent.data);
-          setErrorMsg(data.error || 'Transcription stream error');
-        } catch {
-          // Ignore JSON parse errors
-        }
-      }
-    });
+    eventSource.onerror = () => {
+      eventSource.close();
+      // On SSE disconnect/error, fetch final REST state
+      fetch(`${baseUrl}/api/jobs/${jobId}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (!isMounted || !data) return;
+          setStatus(data.status || 'completed');
+          if (data.error) setErrorMsg(data.error);
+          if (data.status === 'completed' && onCompleted) onCompleted();
+        })
+        .catch(() => {});
+    };
 
     return () => {
+      isMounted = false;
       eventSource.close();
     };
   }, [jobId, onCompleted]);
