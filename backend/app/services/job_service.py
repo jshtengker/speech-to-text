@@ -21,7 +21,24 @@ class JobRepository:
         return self._active_processes
 
     def get_job(self, job_id: str) -> Optional[Dict[str, Any]]:
-        return self._jobs_db.get(job_id)
+        job = self._jobs_db.get(job_id)
+        if job:
+            return job
+
+        # Fallback for serverless container isolation: read cached JSON from OUTPUTS_DIR
+        try:
+            import json
+            from app.core.config import settings
+            json_path = settings.OUTPUTS_DIR / f"{job_id}.json"
+            if json_path.exists():
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self._jobs_db[job_id] = data
+                    return data
+        except Exception:
+            pass
+        return None
+
 
     def set_job(self, job_id: str, job_data: Dict[str, Any]):
         self._jobs_db[job_id] = job_data

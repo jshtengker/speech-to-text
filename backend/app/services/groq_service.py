@@ -136,14 +136,41 @@ class GroqTranscriptionService:
                     f_srt.write(f"{index}\n{start_str} --> {end_str}\n{seg_text}\n\n")
 
             elapsed = round(time.time() - start_time, 2)
+            
+            # Save job metadata & segments JSON for serverless multi-instance persistence
+            json_path = outputs_path / f"{job_id}.json"
+            job_json_data = {
+                "job_id": job_id,
+                "filename": Path(media_path).name,
+                "model": "groq-large-v3",
+                "status": "completed",
+                "created_at": start_time,
+                "completed_at": time.time(),
+                "execution_time": elapsed,
+                "language": detected_language,
+                "language_probability": 1.0,
+                "total_segments": len(all_segments),
+                "segments": all_segments,
+                "downloads": {
+                    "txt": f"/api/download/{job_id}/txt",
+                    "srt": f"/api/download/{job_id}/srt"
+                }
+            }
+            try:
+                with open(json_path, "w", encoding="utf-8") as f_json:
+                    json.dump(job_json_data, f_json, ensure_ascii=False, indent=2)
+            except Exception as e:
+                logger.warning(f"Could not save JSON output cache for job {job_id}: {e}")
+
             ipc_queue.put({"event": "complete", "data": {
                 "status": "completed",
                 "execution_time": elapsed,
                 "output_files": {
-                    "txt": f"/api/download/{job_id}?format=txt",
-                    "srt": f"/api/download/{job_id}?format=srt"
+                    "txt": f"/api/download/{job_id}/txt",
+                    "srt": f"/api/download/{job_id}/srt"
                 }
             }})
+
 
         except RateLimitError as rle:
             logger.error(f"Groq API Rate Limit reached for job {job_id}: {rle}")
