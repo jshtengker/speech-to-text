@@ -13,6 +13,7 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
         errorMessage = errorData.detail;
       }
     } catch {
+      // Ignore JSON parsing errors for non-JSON response bodies
     }
     throw new Error(errorMessage);
   }

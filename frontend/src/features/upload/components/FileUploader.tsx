@@ -91,8 +91,8 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onJobStarted, disabl
         beamSize,
       });
       onJobStarted(data);
-    } catch (err: any) {
-      setUploadError(err.message || 'Error submitting transcription job');
+    } catch (err: unknown) {
+      setUploadError((err as Error).message || 'Error submitting transcription job');
     } finally {
       setIsUploading(false);
     }
