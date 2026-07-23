@@ -21,6 +21,7 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
   return response.json();
 }
 
+<<<<<<< HEAD
 export async function translateTranscript(
   jobId: string,
   targetLanguage: string,
@@ -45,5 +46,11 @@ export async function getTranslationLanguages() {
 
 export async function fetchSupportedModels() {
   return apiFetch<import('../types').ModelListResponse>('/api/models');
+=======
+import { ModelListResponse } from '@/types';
+
+export async function fetchSupportedModels(): Promise<ModelListResponse> {
+  return apiFetch<ModelListResponse>('/api/models');
+>>>>>>> dad4db8 (add: supabase storage configs)
 }
 

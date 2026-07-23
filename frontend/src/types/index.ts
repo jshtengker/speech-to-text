@@ -67,6 +67,7 @@ export interface WhisperModelInfo {
 
 export interface ModelListResponse {
   models: WhisperModelInfo[];
+<<<<<<< HEAD
   groq_configured?: boolean;
   enable_local_models?: boolean;
 }
@@ -102,5 +103,10 @@ export interface TranslationResponse {
   engine_selected: string;
   engine_used: string;
   segments: TranscriptSegment[];
+=======
+  is_cloud: boolean;
+  groq_configured: boolean;
+  enable_local_models: boolean;
+>>>>>>> dad4db8 (add: supabase storage configs)
 }
 

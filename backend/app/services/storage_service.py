@@ -42,6 +42,27 @@ class StorageService:
         return temp_media_path
 
     @staticmethod
+    async def save_url_file(file_url: str, job_id: str) -> Path:
+        import httpx
+        from urllib.parse import urlparse
+
+        parsed_url = urlparse(file_url)
+        raw_name = Path(parsed_url.path).name or "audio.mp3"
+        safe_filename = raw_name if Path(raw_name).suffix else f"{raw_name}.mp3"
+
+        temp_media_path = settings.UPLOADS_DIR / f"{job_id}_{safe_filename}"
+
+        async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as client:
+            async with client.stream("GET", file_url) as response:
+                if response.status_code != 200:
+                    raise HTTPException(status_code=400, detail=f"Failed to download audio from Cloud Storage. HTTP Status: {response.status_code}")
+                with open(temp_media_path, "wb") as buffer:
+                    async for chunk in response.aiter_bytes():
+                        buffer.write(chunk)
+
+        return temp_media_path
+
+    @staticmethod
     def cleanup_file(path: Path):
         if path.exists():
             try:
