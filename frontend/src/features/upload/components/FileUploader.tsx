@@ -7,6 +7,8 @@ import { ALLOWED_EXTENSIONS, MAX_FILE_SIZE_BYTES, ACCEPT_FILE_TYPES } from '../c
 import { submitTranscriptionJob } from '../api/submitJob';
 import { fetchSupportedModels } from '@/services/apiClient';
 import { uploadAudioToSupabase, supabase } from '@/services/supabase';
+import { extractAudioFromMedia } from '@/utils/audioExtractor';
+
 
 
 interface FileUploaderProps {
@@ -120,11 +122,14 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onJobStarted, disabl
     setUploadError(null);
 
     try {
-      let fileOrUrl: File | string = selectedFile;
+      // Automatically extract speech audio track if user selected a large video or audio file > 35 MB
+      const processedFile = await extractAudioFromMedia(selectedFile);
+
+      let fileOrUrl: File | string = processedFile;
 
       // If Supabase is configured and file size > 4 MB or Groq cloud model is selected, upload directly to Supabase storage to bypass Vercel 4.5MB limit
-      if (supabase && (selectedFile.size > 4 * 1024 * 1024 || model === 'groq-large-v3')) {
-        fileOrUrl = await uploadAudioToSupabase(selectedFile);
+      if (supabase && (processedFile.size > 4 * 1024 * 1024 || model === 'groq-large-v3')) {
+        fileOrUrl = await uploadAudioToSupabase(processedFile);
       }
 
       const data = await submitTranscriptionJob(fileOrUrl, {
@@ -140,6 +145,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onJobStarted, disabl
       setIsUploading(false);
     }
   };
+
 
   const isVideo = selectedFile?.type.startsWith('video/');
 
