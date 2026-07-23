@@ -64,10 +64,12 @@ async def create_transcription_job(
     job_repo.job_queues[job_id] = asyncio.Queue()
     main_loop = asyncio.get_running_loop()
 
-    ipc_queue = multiprocessing.Queue()
-    
+    import queue
+    import threading
+
     # Route job to Groq Cloud Service or Local Whisper Worker
     if selected_model == "groq-large-v3":
+        ipc_queue = queue.Queue()
         target_func = groq_service.run_transcription
         target_args = (
             job_id,
@@ -76,7 +78,9 @@ async def create_transcription_job(
             ipc_queue,
             str(settings.OUTPUTS_DIR)
         )
+        proc = threading.Thread(target=target_func, args=target_args)
     else:
+        ipc_queue = multiprocessing.Queue()
         target_func = run_whisper_worker
         target_args = (
             job_id,
@@ -88,8 +92,8 @@ async def create_transcription_job(
             ipc_queue,
             str(settings.OUTPUTS_DIR)
         )
+        proc = multiprocessing.Process(target=target_func, args=target_args)
 
-    proc = multiprocessing.Process(target=target_func, args=target_args)
     proc.start()
     job_repo.active_processes[job_id] = proc
 
