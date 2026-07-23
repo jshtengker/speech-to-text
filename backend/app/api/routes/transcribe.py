@@ -43,15 +43,11 @@ async def create_transcription_job(
         temp_media_path = await storage_service.save_upload_file(file, job_id)
         safe_filename = file.filename or "uploaded_media"
 
-    supported_models = settings.SUPPORTED_MODELS
-    selected_model = model if model in supported_models else ("groq-large-v3" if not settings.ENABLE_LOCAL_MODELS else "turbo")
+    if not settings.ENABLE_LOCAL_MODELS:
+        selected_model = "groq-large-v3"
+    else:
+        selected_model = model if model in settings.SUPPORTED_MODELS else "turbo"
 
-    # Validate model selection against Cloud Mode restrictions
-    if not settings.ENABLE_LOCAL_MODELS and selected_model != "groq-large-v3":
-        raise HTTPException(
-            status_code=400,
-            detail="Local PyTorch Whisper models are disabled on this cloud deployment instance. Please select 'Groq Cloud (Whisper Large-v3)'."
-        )
 
 
     job_data = {
