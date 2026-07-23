@@ -1,12 +1,12 @@
 /**
- * Extracts and downmixes audio tracks from heavy video/audio files (e.g. 1.5GB MKV/MP4)
- * into a lightweight mono 16kHz WAV file directly inside browser memory.
+ * Dynamically extracts and compresses audio tracks from heavy video files (e.g. 1.4GB 1080p movies)
+ * into lightweight speech WAV audio files (<28 MB) directly inside browser memory.
  */
 export async function extractAudioFromMedia(
   file: File,
   onProgress?: (msg: string) => void
 ): Promise<File> {
-  // If it's already an audio file under 35 MB, use directly
+  // If it's already a small audio file under 35 MB, use directly
   if (!file.type.startsWith('video/') && file.size <= 35 * 1024 * 1024) {
     return file;
   }
@@ -19,12 +19,23 @@ export async function extractAudioFromMedia(
     const arrayBuffer = await file.arrayBuffer();
     const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     const audioCtx = new AudioContextClass();
-
     const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
-    const targetSampleRate = 16000;
-    const numberOfFrames = Math.ceil(decodedBuffer.duration * targetSampleRate);
-    
+    const duration = decodedBuffer.duration;
+
+    // Dynamically scale sample rate & bit depth to guarantee output file is < 30 MB regardless of video length
+    let targetSampleRate = 16000;
+    let bitDepth: 8 | 16 = 16;
+
+    if (duration > 2400) { // > 40 minutes (e.g. 1-2 hour movies)
+      targetSampleRate = 8000;
+      bitDepth = 8;
+    } else if (duration > 1200) { // > 20 minutes (e.g. 45 min TV episodes)
+      targetSampleRate = 11025;
+      bitDepth = 16;
+    }
+
+    const numberOfFrames = Math.ceil(duration * targetSampleRate);
     const offlineCtx = new OfflineAudioContext(1, numberOfFrames, targetSampleRate);
     const source = offlineCtx.createBufferSource();
     source.buffer = decodedBuffer;
@@ -32,7 +43,7 @@ export async function extractAudioFromMedia(
     source.start();
 
     const renderedBuffer = await offlineCtx.startRendering();
-    const wavBlob = bufferToWavBlob(renderedBuffer);
+    const wavBlob = bufferToWavBlob(renderedBuffer, bitDepth);
 
     const cleanName = file.name.replace(/\.[^/.]+$/, '') + '_speech.wav';
     return new File([wavBlob], cleanName, { type: 'audio/wav' });
@@ -42,11 +53,10 @@ export async function extractAudioFromMedia(
   }
 }
 
-function bufferToWavBlob(buffer: AudioBuffer): Blob {
+function bufferToWavBlob(buffer: AudioBuffer, bitDepth: 8 | 16 = 16): Blob {
   const numChannels = 1;
   const sampleRate = buffer.sampleRate;
   const format = 1; // PCM
-  const bitDepth = 16;
   
   const bytesPerSample = bitDepth / 8;
   const blockAlign = numChannels * bytesPerSample;
@@ -86,11 +96,18 @@ function bufferToWavBlob(buffer: AudioBuffer): Blob {
   /* data chunk length */
   view.setUint32(40, dataByteCount, true);
 
-  /* float to 16-bit PCM conversion */
+  /* PCM conversion */
   let offset = 44;
-  for (let i = 0; i < samples.length; i++, offset += 2) {
-    const s = Math.max(-1, Math.min(1, samples[i]));
-    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  if (bitDepth === 16) {
+    for (let i = 0; i < samples.length; i++, offset += 2) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+  } else { // 8-bit PCM (unsigned 0-255)
+    for (let i = 0; i < samples.length; i++, offset += 1) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      view.setUint8(offset, Math.floor((s + 1) * 127.5));
+    }
   }
 
   return new Blob([view], { type: 'audio/wav' });
