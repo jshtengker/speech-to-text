@@ -138,7 +138,7 @@ class GroqTranscriptionService:
             elapsed = round(time.time() - start_time, 2)
             
             # Save job metadata & segments JSON for serverless multi-instance persistence
-            json_path = outputs_path / f"{job_id}.json"
+            json_path = outputs_dir / f"{job_id}.json"
             job_json_data = {
                 "job_id": job_id,
                 "filename": Path(media_path).name,
@@ -147,10 +147,10 @@ class GroqTranscriptionService:
                 "created_at": start_time,
                 "completed_at": time.time(),
                 "execution_time": elapsed,
-                "language": detected_language,
+                "language": detected_lang,
                 "language_probability": 1.0,
-                "total_segments": len(all_segments),
-                "segments": all_segments,
+                "total_segments": len(segment_list),
+                "segments": segment_list,
                 "downloads": {
                     "txt": f"/api/download/{job_id}/txt",
                     "srt": f"/api/download/{job_id}/srt"
@@ -161,6 +161,7 @@ class GroqTranscriptionService:
                     json.dump(job_json_data, f_json, ensure_ascii=False, indent=2)
             except Exception as e:
                 logger.warning(f"Could not save JSON output cache for job {job_id}: {e}")
+
 
             ipc_queue.put({"event": "complete", "data": {
                 "status": "completed",
