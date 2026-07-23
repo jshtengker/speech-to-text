@@ -49,8 +49,8 @@ export const TranslationSelector: React.FC<TranslationSelectorProps> = ({
       const res = await translateTranscript(jobId, selectedLang, selectedEngine);
       onTranslationSuccess(res);
       refreshData();
-    } catch (err: any) {
-      setError(err.message || 'Translation failed.');
+    } catch (err: unknown) {
+      setError((err as Error).message || 'Translation failed.');
     } finally {
       setIsTranslating(false);
     }
