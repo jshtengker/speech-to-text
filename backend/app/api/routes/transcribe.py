@@ -11,7 +11,8 @@ from fastapi import APIRouter, UploadFile, File, Form, Query, BackgroundTasks, H
 from fastapi.responses import StreamingResponse
 
 from app.core.config import settings
-from app.schemas.job import JobSubmitResponse, JobStatusResponse, JobCancelResponse
+from app.schemas.job import JobSubmitResponse, JobStatusResponse, JobCancelResponse, DownloadUrls
+
 from app.schemas.segment import SegmentPaginatedResponse, SegmentItem
 from app.services.job_service import job_repo
 from app.services.storage_service import storage_service
@@ -94,6 +95,7 @@ async def create_transcription_job(
         completed_job = job_repo.get_job(job_id)
         final_status = completed_job.get("status", "completed") if completed_job else "completed"
         err_detail = completed_job.get("error") if completed_job else None
+        segments = completed_job.get("segments", []) if completed_job else []
 
         if final_status == "failed" and err_detail:
             raise HTTPException(status_code=400, detail=err_detail)
@@ -103,8 +105,14 @@ async def create_transcription_job(
             filename=safe_filename,
             model=selected_model,
             status=final_status,
-            message="Groq Cloud transcription completed successfully."
+            message="Groq Cloud transcription completed successfully.",
+            segments=segments,
+            downloads=DownloadUrls(
+                txt=f"/api/download/{job_id}/txt",
+                srt=f"/api/download/{job_id}/srt"
+            )
         )
+
 
     else:
         ipc_queue = multiprocessing.Queue()

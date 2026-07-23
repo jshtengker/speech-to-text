@@ -11,6 +11,9 @@ class JobSubmitResponse(BaseModel):
     model: str
     status: str
     message: str
+    segments: Optional[List[Dict[str, Any]]] = None
+    downloads: Optional[DownloadUrls] = None
+
 
 class JobStatusResponse(BaseModel):
     job_id: str

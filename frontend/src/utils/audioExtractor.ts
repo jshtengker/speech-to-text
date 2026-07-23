@@ -1,6 +1,6 @@
 /**
- * Dynamically extracts and compresses audio tracks from heavy video files (e.g. 1.4GB 1080p movies)
- * into lightweight speech WAV audio files (<20 MB) directly inside browser memory.
+ * Dynamically extracts audio tracks from heavy video files (e.g. 1.4GB 1080p movies)
+ * into lightweight, pristine 16kHz 16-bit PCM WAV audio files (<23 MB) directly inside browser memory.
  */
 export async function extractAudioFromMedia(
   file: File,
@@ -21,22 +21,13 @@ export async function extractAudioFromMedia(
     const audioCtx = new AudioContextClass();
     const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
+    // Standard Whisper 16kHz 16-bit mono audio is 32,000 bytes/sec (~1.92 MB per min)
+    // Cap duration to 12 minutes (720s) to guarantee WAV payload stays strictly < 23 MB (Groq limit is 25 MB)
+    const targetSampleRate = 16000;
+    const bitDepth = 16;
     let renderDuration = decodedBuffer.duration;
-    // Cap to max 45 minutes (2700s) to guarantee WAV payload stays strictly under Groq's 25 MB limit
-    if (renderDuration > 2700) {
-      renderDuration = 2700;
-    }
-
-    // Use ONLY standard sample rates (16000Hz or 8000Hz) for Whisper/Groq API compatibility
-    let targetSampleRate = 16000;
-    let bitDepth: 8 | 16 = 16;
-
-    if (renderDuration > 1200) { // > 20 minutes (e.g. 45 min TV episode)
-      targetSampleRate = 8000;
-      bitDepth = 8;
-    } else if (renderDuration > 600) { // 10 to 20 minutes
-      targetSampleRate = 8000;
-      bitDepth = 16;
+    if (renderDuration > 720) {
+      renderDuration = 720;
     }
 
     const numberOfFrames = Math.ceil(renderDuration * targetSampleRate);
@@ -107,7 +98,7 @@ function bufferToWavBlob(buffer: AudioBuffer, bitDepth: 8 | 16 = 16): Blob {
       const s = Math.max(-1, Math.min(1, samples[i]));
       view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
     }
-  } else { // 8-bit PCM (unsigned 0-255)
+  } else {
     for (let i = 0; i < samples.length; i++, offset += 1) {
       const s = Math.max(-1, Math.min(1, samples[i]));
       view.setUint8(offset, Math.floor((s + 1) * 127.5));

@@ -38,7 +38,13 @@ export interface TranscribeResponse {
   model?: string;
   status: string;
   message: string;
+  segments?: TranscriptSegment[];
+  downloads?: {
+    txt: string;
+    srt: string;
+  };
 }
+
 
 export interface PaginatedSegmentsResponse {
   job_id: string;
