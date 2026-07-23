@@ -20,8 +20,22 @@ export async function uploadAudioToSupabase(file: File): Promise<string> {
   });
 
   if (error) {
+    const errMsg = error.message.toLowerCase();
+    if (errMsg.includes('exceeded') || errMsg.includes('maximum allowed size') || errMsg.includes('too large')) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      throw new Error(
+        `File Size Limit Exceeded (${fileSizeMB} MB). The maximum allowed file size is 50 MB. Please select a shorter media file or audio recording.`
+      );
+    }
+
+    if (errMsg.includes('row-level security') || errMsg.includes('unauthorized') || errMsg.includes('403')) {
+      throw new Error(
+        'Supabase Storage Access Denied: Please enable public INSERT/SELECT policies for the "speech-media" bucket in your Supabase Dashboard.'
+      );
+    }
     throw new Error(`Storage Upload Error: ${error.message}`);
   }
+
 
   const { data: publicUrlData } = supabase.storage.from('speech-media').getPublicUrl(data.path);
   return publicUrlData.publicUrl;
