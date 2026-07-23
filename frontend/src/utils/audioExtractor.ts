@@ -23,17 +23,21 @@ export async function extractAudioFromMedia(
 
     const duration = decodedBuffer.duration;
 
-    // Dynamically scale sample rate & bit depth to guarantee output file is < 30 MB regardless of video length
+    // Dynamically scale sample rate & bit depth to guarantee output WAV is < 20 MB (Groq API limit is 25 MB)
     let targetSampleRate = 16000;
     let bitDepth: 8 | 16 = 16;
 
-    if (duration > 2400) { // > 40 minutes (e.g. 1-2 hour movies)
+    if (duration > 3000) { // > 50 minutes (e.g. 1 hour full movie episode)
+      targetSampleRate = 6000;
+      bitDepth = 8;
+    } else if (duration > 1500) { // 25 to 50 minutes (e.g. 45 min TV episode)
       targetSampleRate = 8000;
       bitDepth = 8;
-    } else if (duration > 1200) { // > 20 minutes (e.g. 45 min TV episodes)
-      targetSampleRate = 11025;
+    } else if (duration > 600) { // 10 to 25 minutes
+      targetSampleRate = 8000;
       bitDepth = 16;
     }
+
 
     const numberOfFrames = Math.ceil(duration * targetSampleRate);
     const offlineCtx = new OfflineAudioContext(1, numberOfFrames, targetSampleRate);
