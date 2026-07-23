@@ -17,7 +17,9 @@ export async function extractAudioFromMedia(
 
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const audioCtx = new AudioContextClass();
+
     const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
     const targetSampleRate = 16000;
