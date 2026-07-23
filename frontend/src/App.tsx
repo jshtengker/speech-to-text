@@ -28,13 +28,10 @@ export function App() {
   const isProcessing = activeJob !== null && !jobCompleted && !jobCancelled;
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#0d0c0a] text-[#e6e2dd] selection:bg-[#c8864a]/30 selection:text-[#c8864a] relative overflow-hidden">
-      <div className="fixed top-[-5%] left-1/3 w-125 h-125 bg-[#c8864a]/10 rounded-full blur-[120px] pointer-events-none -z-10" />
-      <div className="fixed bottom-[-10%] right-1/4 w-150 h-150 bg-[#9a6a38]/10 rounded-full blur-[140px] pointer-events-none -z-10" />
-
+    <div className="min-h-screen flex flex-col bg-raycast-obsidian text-[#e6e2dd] selection:bg-[#c8864a]/30 selection:text-[#c8864a] relative overflow-hidden">
       <Header />
 
-      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 pb-20 space-y-8 animate-fade-in">
+      <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 pb-20 space-y-8 animate-fade-in relative z-10">
         {!activeJob && (
           <div className="text-center py-6 space-y-4 max-w-2xl mx-auto">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#c8864a]/10 border border-[#c8864a]/25 text-xs font-semibold text-[#e6b88a] shadow-sm shadow-[#c8864a]/10">

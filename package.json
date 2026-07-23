@@ -1,0 +1,10 @@
+{
+  "name": "speech-to-text-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Speech-to-Text Application Workspace",
+  "scripts": {
+    "dev": "powershell -Command \"Start-Process powershell -ArgumentList '-NoExit', '-Command', 'Set-Location backend; & ..\\venv\\Scripts\\Activate.ps1; uvicorn main:app --reload'; Start-Process powershell -ArgumentList '-NoExit', '-Command', 'Set-Location frontend; pnpm dev'\"",
+    "start": "pnpm dev"
+  }
+}

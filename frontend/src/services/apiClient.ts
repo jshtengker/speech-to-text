@@ -13,9 +13,33 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
         errorMessage = errorData.detail;
       }
     } catch {
+      // Ignore JSON parsing errors for non-JSON response bodies
     }
     throw new Error(errorMessage);
   }
 
   return response.json();
 }
+
+export async function translateTranscript(
+  jobId: string,
+  targetLanguage: string,
+  engine: string = 'auto'
+) {
+  return apiFetch<import('../types').TranslationResponse>('/api/translate', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      job_id: jobId,
+      target_language: targetLanguage,
+      engine: engine,
+    }),
+  });
+}
+
+export async function getTranslationLanguages() {
+  return apiFetch<import('../types').SupportedLanguagesResponse>('/api/translate/languages');
+}
+

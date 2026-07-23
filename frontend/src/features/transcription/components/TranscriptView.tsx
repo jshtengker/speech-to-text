@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Copy, Check, Search, FileText, Subtitles, ChevronLeft, ChevronRight } from 'lucide-react';
-import { TranscriptSegment, JobStatusResponse } from '@/types';
+import { Download, Copy, Check, Search, FileText, Subtitles, ChevronLeft, ChevronRight, Globe } from 'lucide-react';
+import { TranscriptSegment, JobStatusResponse, TranslationResponse } from '@/types';
 import { fetchJobStatus, fetchJobSegments, getDownloadUrl } from '../api/transcriptionApi';
+import { TranslationSelector } from './TranslationSelector';
 
 interface TranscriptViewProps {
   jobId: string;
@@ -9,7 +10,10 @@ interface TranscriptViewProps {
 
 export const TranscriptView: React.FC<TranscriptViewProps> = ({ jobId }) => {
   const [jobStatus, setJobStatus] = useState<JobStatusResponse | null>(null);
-  const [segments, setSegments] = useState<TranscriptSegment[]>([]);
+  const [originalSegments, setOriginalSegments] = useState<TranscriptSegment[]>([]);
+  const [activeTranslation, setActiveTranslation] = useState<TranslationResponse | null>(null);
+  const [viewMode, setViewMode] = useState<'original' | 'translated'>('original');
+  const [isTranslating, setIsTranslating] = useState(false);
   const [activeTab, setActiveTab] = useState<'txt' | 'srt'>('txt');
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(false);
@@ -29,7 +33,7 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ jobId }) => {
     setLoading(true);
     fetchJobSegments(jobId, page, 50)
       .then((data) => {
-        setSegments(data.segments);
+        setOriginalSegments(data.segments);
         setTotalPages(data.total_pages);
         setTotalItems(data.total_items);
       })
@@ -37,7 +41,27 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ jobId }) => {
       .finally(() => setLoading(false));
   }, [jobId, page]);
 
-  const filteredSegments = segments.filter((seg) =>
+  const isViewingTranslation = viewMode === 'translated' && activeTranslation !== null;
+  const currentSegments = isViewingTranslation ? activeTranslation.segments : originalSegments;
+
+  const handleDownload = (fileType: 'txt' | 'srt') => {
+    const lang = isViewingTranslation ? activeTranslation.target_language : undefined;
+    const downloadUrl = getDownloadUrl(jobId, fileType, lang);
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    const langSuffix = lang ? `_${lang}` : '';
+    link.download = `${jobStatus?.filename || 'transcript'}${langSuffix}.${fileType}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleTranslationSuccess = (res: TranslationResponse) => {
+    setActiveTranslation(res);
+    setViewMode('translated');
+  };
+
+  const filteredSegments = currentSegments.filter((seg) =>
     seg.text.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -58,9 +82,20 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ jobId }) => {
       .join('\n');
   };
 
+  const formatDisplayTime = (seconds: number): string => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+
+    if (h > 0) {
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    }
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
+
   const getPlainText = () => {
     return filteredSegments
-      .map((seg) => `[${seg.start.toFixed(2)}s -> ${seg.end.toFixed(2)}s] ${seg.text}`)
+      .map((seg) => `[${formatDisplayTime(seg.start)} -> ${formatDisplayTime(seg.end)}] ${seg.text}`)
       .join('\n');
   };
 
@@ -71,18 +106,43 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ jobId }) => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDownload = (fileType: 'txt' | 'srt') => {
-    const downloadUrl = getDownloadUrl(jobId, fileType);
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.download = `${jobStatus?.filename || 'transcript'}.${fileType}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
   return (
     <div className="glass-panel rounded-2xl p-6 sm:p-8 border border-[#2b2823] shadow-2xl animate-fade-in">
+      <TranslationSelector
+        jobId={jobId}
+        onTranslationSuccess={handleTranslationSuccess}
+        isTranslating={isTranslating}
+        setIsTranslating={setIsTranslating}
+        activeTranslation={activeTranslation}
+      />
+
+      <div className="flex items-center gap-2 mb-5 bg-[#181614] p-1 rounded-xl border border-[#2b2823] w-fit">
+        <button
+          onClick={() => setViewMode('original')}
+          className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+            viewMode === 'original'
+              ? 'bg-[#c8864a]/20 text-[#e6b88a] border border-[#c8864a]/40 shadow-sm'
+              : 'text-[#a39b91] hover:text-[#e6e2dd]'
+          }`}
+        >
+          <span>Original Transcript ({jobStatus?.language || 'Native'})</span>
+        </button>
+
+        {activeTranslation && (
+          <button
+            onClick={() => setViewMode('translated')}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+              viewMode === 'translated'
+                ? 'gold-gradient-btn text-white shadow-md shadow-[#c8864a]/20'
+                : 'text-[#a39b91] hover:text-[#e6e2dd]'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5 text-[#e6b88a]" />
+            <span>Translated ({activeTranslation.target_language_name})</span>
+          </button>
+        )}
+      </div>
+
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
         <div>
           <div className="flex items-center gap-2">
@@ -185,7 +245,7 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ jobId }) => {
                 className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-[#181614] transition-colors border border-transparent hover:border-[#2b2823]"
               >
                 <span className="px-2 py-0.5 rounded bg-[#201e1b] border border-[#2b2823] text-[10px] text-[#c8864a] font-mono shrink-0 font-medium">
-                  {seg.start.toFixed(2)}s → {seg.end.toFixed(2)}s
+                  {formatDisplayTime(seg.start)} → {formatDisplayTime(seg.end)}
                 </span>
                 <p className="text-[#e6e2dd] leading-relaxed">{seg.text}</p>
               </div>
