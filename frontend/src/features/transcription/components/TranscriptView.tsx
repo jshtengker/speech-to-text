@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Download, Copy, Check, Search, FileText, Subtitles, ChevronLeft, ChevronRight, Globe } from 'lucide-react';
-import { TranscriptSegment, JobStatusResponse, TranslationResponse } from '@/types';
-import { fetchJobStatus, fetchJobSegments, getDownloadUrl } from '../api/transcriptionApi';
+import { TranscriptSegment, JobStatusResponse, TranslationResponse, TranscribeResponse } from '@/types';
+import { fetchJobStatus, fetchJobSegments } from '../api/transcriptionApi';
 import { TranslationSelector } from './TranslationSelector';
 
 interface TranscriptViewProps {
   jobId: string;
+  initialJob?: TranscribeResponse | null;
 }
 
-export const TranscriptView: React.FC<TranscriptViewProps> = ({ jobId }) => {
+export const TranscriptView: React.FC<TranscriptViewProps> = ({ jobId, initialJob }) => {
   const [jobStatus, setJobStatus] = useState<JobStatusResponse | null>(null);
   const [originalSegments, setOriginalSegments] = useState<TranscriptSegment[]>([]);
   const [activeTranslation, setActiveTranslation] = useState<TranslationResponse | null>(null);
@@ -24,12 +25,28 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ jobId }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (initialJob?.segments && initialJob.segments.length > 0) {
+      setOriginalSegments(initialJob.segments);
+      setTotalItems(initialJob.segments.length);
+      setTotalPages(Math.ceil(initialJob.segments.length / 50));
+      setLoading(false);
+      setJobStatus({
+        job_id: initialJob.job_id,
+        filename: initialJob.filename,
+        model: initialJob.model || 'groq-large-v3',
+        status: (initialJob.status as JobStatusResponse['status']) || 'completed',
+
+        created_at: Date.now() / 1000,
+        total_segments: initialJob.segments.length,
+        downloads: initialJob.downloads || { txt: '', srt: '' }
+      });
+      return;
+    }
+
     fetchJobStatus(jobId)
       .then((data) => setJobStatus(data))
-      .catch((err) => console.error('Failed to fetch job metadata:', err));
-  }, [jobId]);
+      .catch(() => {});
 
-  useEffect(() => {
     setLoading(true);
     fetchJobSegments(jobId, page, 50)
       .then((data) => {
@@ -37,24 +54,27 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ jobId }) => {
         setTotalPages(data.total_pages);
         setTotalItems(data.total_items);
       })
-      .catch((err) => console.error('Failed to fetch segments:', err))
+      .catch(() => {})
       .finally(() => setLoading(false));
-  }, [jobId, page]);
+  }, [jobId, page, initialJob]);
 
   const isViewingTranslation = viewMode === 'translated' && activeTranslation !== null;
   const currentSegments = isViewingTranslation ? activeTranslation.segments : originalSegments;
 
   const handleDownload = (fileType: 'txt' | 'srt') => {
-    const lang = isViewingTranslation ? activeTranslation.target_language : undefined;
-    const downloadUrl = getDownloadUrl(jobId, fileType, lang);
+    const textContent = fileType === 'srt' ? getSrtText() : getPlainText();
+    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.href = downloadUrl;
-    const langSuffix = lang ? `_${lang}` : '';
+    link.href = url;
+    const langSuffix = isViewingTranslation ? `_${activeTranslation.target_language}` : '';
     link.download = `${jobStatus?.filename || 'transcript'}${langSuffix}.${fileType}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
+
 
   const handleTranslationSuccess = (res: TranslationResponse) => {
     setActiveTranslation(res);
