@@ -6,6 +6,8 @@ import { WHISPER_MODELS, WhisperModel } from '../constants/models';
 import { ALLOWED_EXTENSIONS, MAX_FILE_SIZE_BYTES, ACCEPT_FILE_TYPES } from '../constants/files';
 import { submitTranscriptionJob } from '../api/submitJob';
 import { fetchSupportedModels } from '@/services/apiClient';
+import { uploadAudioToSupabase, supabase } from '@/services/supabase';
+
 
 interface FileUploaderProps {
   onJobStarted: (job: TranscribeResponse) => void;
@@ -118,7 +120,14 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onJobStarted, disabl
     setUploadError(null);
 
     try {
-      const data = await submitTranscriptionJob(selectedFile, {
+      let fileOrUrl: File | string = selectedFile;
+
+      // If Supabase is configured and file size > 4 MB or Groq cloud model is selected, upload directly to Supabase storage to bypass Vercel 4.5MB limit
+      if (supabase && (selectedFile.size > 4 * 1024 * 1024 || model === 'groq-large-v3')) {
+        fileOrUrl = await uploadAudioToSupabase(selectedFile);
+      }
+
+      const data = await submitTranscriptionJob(fileOrUrl, {
         model,
         language: language || undefined,
         vadFilter,

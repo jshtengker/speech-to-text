@@ -21,6 +21,8 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
   return response.json();
 }
 
+import { ModelListResponse } from '@/types';
+
 export async function translateTranscript(
   jobId: string,
   targetLanguage: string,
@@ -43,7 +45,8 @@ export async function getTranslationLanguages() {
   return apiFetch<import('../types').SupportedLanguagesResponse>('/api/translate/languages');
 }
 
-export async function fetchSupportedModels() {
-  return apiFetch<import('../types').ModelListResponse>('/api/models');
+export async function fetchSupportedModels(): Promise<ModelListResponse> {
+  return apiFetch<ModelListResponse>('/api/models');
 }
+
 

@@ -4,6 +4,8 @@ import json
 import asyncio
 import multiprocessing
 from typing import Optional
+from pathlib import Path
+
 
 from fastapi import APIRouter, UploadFile, File, Form, Query, BackgroundTasks, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -21,16 +23,24 @@ router = APIRouter(tags=["Transcription"])
 @router.post("/transcribe", status_code=202, response_model=JobSubmitResponse)
 async def create_transcription_job(
     background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
+    file: Optional[UploadFile] = File(default=None),
+    file_url: Optional[str] = Form(default=None),
     model: str = Form(default="turbo"),
     language: Optional[str] = Form(default=None),
     vad_filter: bool = Form(default=True),
     beam_size: int = Form(default=5)
 ):
-    """Submits an audio or video file for background transcription."""
+    """Submits an audio or video file (or Cloud Storage URL) for background transcription."""
+    if not file and not file_url:
+        raise HTTPException(status_code=400, detail="Either an uploaded file or file_url must be provided.")
+
     job_id = str(uuid.uuid4())
-    temp_media_path = await storage_service.save_upload_file(file, job_id)
-    safe_filename = file.filename or "uploaded_media"
+    if file_url and file_url.strip():
+        temp_media_path = await storage_service.save_url_file(file_url.strip(), job_id)
+        safe_filename = Path(temp_media_path).name
+    else:
+        temp_media_path = await storage_service.save_upload_file(file, job_id)
+        safe_filename = file.filename or "uploaded_media"
 
     supported_models = settings.SUPPORTED_MODELS
     selected_model = model if model in supported_models else ("groq-large-v3" if not settings.ENABLE_LOCAL_MODELS else "turbo")
@@ -41,6 +51,7 @@ async def create_transcription_job(
             status_code=400,
             detail="Local PyTorch Whisper models are disabled on this cloud deployment instance. Please select 'Groq Cloud (Whisper Large-v3)'."
         )
+
 
     job_data = {
         "job_id": job_id,

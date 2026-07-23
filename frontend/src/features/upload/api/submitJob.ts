@@ -1,11 +1,15 @@
 import { TranscribeOptions, TranscribeResponse } from '@/types';
 
 export async function submitTranscriptionJob(
-  file: File,
+  fileOrUrl: File | string,
   options: TranscribeOptions = {}
 ): Promise<TranscribeResponse> {
   const formData = new FormData();
-  formData.append('file', file);
+  if (typeof fileOrUrl === 'string') {
+    formData.append('file_url', fileOrUrl);
+  } else {
+    formData.append('file', fileOrUrl);
+  }
   
   if (options.model) {
     formData.append('model', options.model);
