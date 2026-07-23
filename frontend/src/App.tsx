@@ -65,8 +65,9 @@ export function App() {
         )}
 
         {activeJob && jobCompleted && (
-          <TranscriptView jobId={activeJob.job_id} />
+          <TranscriptView jobId={activeJob.job_id} initialJob={activeJob} />
         )}
+
       </main>
 
       <footer className="border-t border-[#2b2823] py-6 px-6 text-center text-xs text-[#a39b91] bg-[#181614]/50 backdrop-blur-md">
