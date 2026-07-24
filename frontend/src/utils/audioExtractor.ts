@@ -12,7 +12,7 @@ export async function extractAudioFromMedia(
   }
 
   if (onProgress) {
-    onProgress('Extracting speech audio track from video file in browser...');
+    onProgress('Extracting & compressing speech audio track from heavy media file...');
   }
 
   try {
@@ -21,11 +21,59 @@ export async function extractAudioFromMedia(
     const audioCtx = new AudioContextClass();
     const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
-    // Standard Whisper 16kHz 16-bit mono audio
-    const targetSampleRate = 16000;
-    const bitDepth = 16;
-    const renderDuration = decodedBuffer.duration;
+    // Try compressed Opus/WebM encoding first via MediaRecorder for ultra-small file size (~15MB for full movie)
+    try {
+      const mimeType = (typeof MediaRecorder !== 'undefined') && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : (typeof MediaRecorder !== 'undefined') && MediaRecorder.isTypeSupported('audio/webm')
+        ? 'audio/webm'
+        : (typeof MediaRecorder !== 'undefined') && MediaRecorder.isTypeSupported('audio/ogg')
+        ? 'audio/ogg'
+        : '';
 
+      if (mimeType) {
+        const dest = audioCtx.createMediaStreamDestination();
+        const source = audioCtx.createBufferSource();
+        source.buffer = decodedBuffer;
+        source.connect(dest);
+
+        const recorder = new MediaRecorder(dest.stream, {
+          mimeType,
+          audioBitsPerSecond: 32000 // 32 kbps Mono speech stream (~15MB for a 1.5 hr movie)
+        });
+
+        const chunks: Blob[] = [];
+        const recordingPromise = new Promise<Blob>((resolve, reject) => {
+          recorder.ondataavailable = (e) => {
+            if (e.data && e.data.size > 0) chunks.push(e.data);
+          };
+          recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
+          recorder.onerror = (e) => reject(e);
+        });
+
+        recorder.start(100);
+        source.start(0);
+
+        source.onended = () => {
+          recorder.stop();
+        };
+
+        const compressedBlob = await recordingPromise;
+        await audioCtx.close().catch(() => {});
+
+        if (compressedBlob.size > 0 && compressedBlob.size < file.size) {
+          const ext = mimeType.includes('ogg') ? '.ogg' : '.webm';
+          const cleanName = file.name.replace(/\.[^/.]+$/, '') + `_compressed${ext}`;
+          return new File([compressedBlob], cleanName, { type: mimeType });
+        }
+      }
+    } catch (recorderErr) {
+      console.warn('Compressed MediaRecorder extraction fallback:', recorderErr);
+    }
+
+    // Fallback: Standard Whisper 16kHz mono WAV audio
+    const targetSampleRate = 16000;
+    const renderDuration = decodedBuffer.duration;
     const numberOfFrames = Math.ceil(renderDuration * targetSampleRate);
     const offlineCtx = new OfflineAudioContext(1, numberOfFrames, targetSampleRate);
     const source = offlineCtx.createBufferSource();
@@ -34,6 +82,11 @@ export async function extractAudioFromMedia(
     source.start();
 
     const renderedBuffer = await offlineCtx.startRendering();
+    await audioCtx.close().catch(() => {});
+
+    // Use 8-bit PCM if estimated 16-bit size exceeds 45 MB
+    const estimated16BitSize = numberOfFrames * 2 + 44;
+    const bitDepth = estimated16BitSize > 45 * 1024 * 1024 ? 8 : 16;
     const wavBlob = bufferToWavBlob(renderedBuffer, bitDepth);
 
     const cleanName = file.name.replace(/\.[^/.]+$/, '') + '_speech.wav';
