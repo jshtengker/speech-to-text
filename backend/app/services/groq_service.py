@@ -3,13 +3,62 @@ import time
 import json
 import logging
 from pathlib import Path
-from typing import Optional, Dict, Any
-
+import wave
 from app.core.config import settings
+from app.services.job_service import job_repo
+from typing import Optional, Dict, Any, List, Tuple
+
+try:
+    from groq import Groq, RateLimitError, APIError, APIStatusError
+except ImportError:
+    Groq = None
+    RateLimitError = Exception
+    APIError = Exception
+    APIStatusError = Exception
 
 logger = logging.getLogger(__name__)
 
+
+def _split_wav_file(wav_path: Path, max_bytes: int = 21 * 1024 * 1024) -> List[Tuple[Path, float]]:
+    """Splits large WAV files into ~20 MB chunks using Python stdlib wave module."""
+    if not wav_path.name.endswith(".wav") or not wav_path.exists() or wav_path.stat().st_size <= max_bytes:
+        return [(wav_path, 0.0)]
+
+    chunks = []
+    try:
+        with wave.open(str(wav_path), 'rb') as w_in:
+            params = w_in.getparams()
+            nchannels, sampwidth, framerate, nframes = params[:4]
+            bytes_per_frame = nchannels * sampwidth
+            if bytes_per_frame <= 0 or framerate <= 0:
+                return [(wav_path, 0.0)]
+
+            frames_per_chunk = max_bytes // bytes_per_frame
+            chunk_idx = 0
+            frames_read = 0
+
+            while frames_read < nframes:
+                to_read = min(frames_per_chunk, nframes - frames_read)
+                frames_data = w_in.readframes(to_read)
+                time_offset = frames_read / framerate
+
+                chunk_file = wav_path.parent / f"{wav_path.stem}_chunk_{chunk_idx}.wav"
+                with wave.open(str(chunk_file), 'wb') as w_out:
+                    w_out.setparams(params)
+                    w_out.writeframes(frames_data)
+
+                chunks.append((chunk_file, time_offset))
+                frames_read += to_read
+                chunk_idx += 1
+
+        return chunks if chunks else [(wav_path, 0.0)]
+    except Exception as e:
+        logger.warning(f"Could not split WAV file, processing original: {e}")
+        return [(wav_path, 0.0)]
+
+
 class GroqServiceException(Exception):
+
     """Base exception for Groq service errors."""
     pass
 
@@ -22,7 +71,9 @@ class GroqTranscriptionService:
         self._last_usage_info: Optional[Dict[str, Any]] = None
 
     def is_configured(self) -> bool:
-        return bool(settings.GROQ_API_KEY and settings.GROQ_API_KEY.strip())
+        key = str(settings.GROQ_API_KEY or "").strip()
+        return bool(key)
+
 
     def get_usage_info(self) -> Optional[Dict[str, Any]]:
         return self._last_usage_info
@@ -49,9 +100,7 @@ class GroqTranscriptionService:
             })
             return
 
-        try:
-            from groq import Groq, RateLimitError, APIError, APIStatusError
-        except ImportError:
+        if Groq is None:
             ipc_queue.put({
                 "event": "status",
                 "data": {
@@ -61,44 +110,67 @@ class GroqTranscriptionService:
             })
             return
 
+
         try:
             ipc_queue.put({"event": "status", "data": {"status": "processing"}})
             start_time = time.time()
             outputs_dir = Path(outputs_dir_str)
             media_path = Path(media_path_str)
 
-            client = Groq(api_key=settings.GROQ_API_KEY.strip())
+            assert Groq is not None, "Groq SDK is not installed"
+            api_key = (settings.GROQ_API_KEY or "").strip()
+            client = Groq(api_key=api_key)
 
 
-            with open(media_path, "rb") as file_obj:
-                extra_args = {}
-                if language and language.strip():
-                    extra_args["language"] = language.strip().lower()
 
-                # Call Groq Whisper API with verbose JSON format for detailed timestamps
-                response = client.audio.transcriptions.create(
-                    file=(media_path.name, file_obj),
-                    model="whisper-large-v3",
-                    response_format="verbose_json",
-                    **extra_args
-                )
 
-            # Inspect response dictionary or object
-            resp_dict = response.model_dump() if hasattr(response, "model_dump") else dict(response)
+            chunks = _split_wav_file(media_path)
+            raw_segments = []
+            detected_lang = "EN"
+            primary_language = language.strip().lower() if language and language.strip() else None
 
-            detected_lang = resp_dict.get("language", "en").upper()
-            ipc_queue.put({"event": "info", "data": {"language": detected_lang, "language_probability": 1.0}})
+            for chunk_idx, (chunk_path, time_offset) in enumerate(chunks):
+                with open(chunk_path, "rb") as file_obj:
+                    extra_args = {}
+                    # Use explicit language or carry over detected language from chunk 1
+                    current_lang = primary_language or (detected_lang.lower() if chunk_idx > 0 and detected_lang else None)
+                    if current_lang:
+                        extra_args["language"] = current_lang
 
-            raw_segments = resp_dict.get("segments", [])
-            
-            # If no segment details returned, fallback to full text
-            if not raw_segments and "text" in resp_dict:
-                raw_segments = [{
-                    "id": 1,
-                    "start": 0.0,
-                    "end": 0.0,
-                    "text": resp_dict["text"]
-                }]
+                    response = client.audio.transcriptions.create(
+                        file=(chunk_path.name, file_obj),
+                        model="whisper-large-v3",
+                        response_format="verbose_json",
+                        **extra_args
+                    )
+
+                resp_dict = response.model_dump() if hasattr(response, "model_dump") else dict(response)
+
+                if chunk_idx == 0:
+                    detected_lang = resp_dict.get("language", "en").upper()
+                    ipc_queue.put({"event": "info", "data": {"language": detected_lang, "language_probability": 1.0}})
+
+                chunk_segs = resp_dict.get("segments", [])
+                if not chunk_segs and "text" in resp_dict:
+                    chunk_segs = [{
+                        "id": 1,
+                        "start": 0.0,
+                        "end": 0.0,
+                        "text": resp_dict["text"]
+                    }]
+
+                for seg in chunk_segs:
+                    seg["start"] = float(seg.get("start", 0.0)) + time_offset
+                    seg["end"] = float(seg.get("end", 0.0)) + time_offset
+                    raw_segments.append(seg)
+
+                if chunk_path != media_path and chunk_path.exists():
+                    try:
+                        os.remove(chunk_path)
+                    except Exception:
+                        pass
+
+
 
             outputs_dir = Path(outputs_dir_str)
             txt_file_path = outputs_dir / f"{job_id}.txt"
@@ -165,6 +237,16 @@ class GroqTranscriptionService:
                 logger.warning(f"Could not save JSON output cache for job {job_id}: {e}")
 
 
+            # Update in-memory job repository for active request threads / API queries
+            if job_id in job_repo.jobs_db:
+                job_repo.jobs_db[job_id]["status"] = "completed"
+                job_repo.jobs_db[job_id]["segments"] = segment_list
+                job_repo.jobs_db[job_id]["total_segments"] = len(segment_list)
+                job_repo.jobs_db[job_id]["language"] = detected_lang
+                job_repo.jobs_db[job_id]["language_probability"] = 1.0
+                job_repo.jobs_db[job_id]["execution_time"] = elapsed
+                job_repo.jobs_db[job_id]["completed_at"] = time.time()
+
             ipc_queue.put({"event": "complete", "data": {
                 "status": "completed",
                 "execution_time": elapsed,
@@ -177,16 +259,24 @@ class GroqTranscriptionService:
 
         except RateLimitError as rle:
             logger.error(f"Groq API Rate Limit reached for job {job_id}: {rle}")
+            err_msg = "Groq API Rate Limit reached. Please wait a few minutes before trying again."
+            if job_id in job_repo.jobs_db:
+                job_repo.jobs_db[job_id]["status"] = "failed"
+                job_repo.jobs_db[job_id]["error"] = err_msg
             ipc_queue.put({
                 "event": "status",
                 "data": {
                     "status": "failed",
-                    "error": "Groq API Rate Limit reached. Please wait a few minutes before trying again."
+                    "error": err_msg
                 }
             })
         except Exception as e:
             err_msg = f"Groq API Error ({type(e).__name__}): {str(e)}"
             logger.error(f"Groq API transcription error for job {job_id}: {err_msg}")
+
+            if job_id in job_repo.jobs_db:
+                job_repo.jobs_db[job_id]["status"] = "failed"
+                job_repo.jobs_db[job_id]["error"] = err_msg
 
             json_path = outputs_dir / f"{job_id}.json"
             failed_job_data = {

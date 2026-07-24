@@ -330,12 +330,12 @@ class TranslationManager:
                 logger.warning(f"Failed to read cache file {cached_file}: {e}")
 
         job_data = job_repo.get_job(job_id)
-        if job_data:
+        if job_data and job_data.get("segments"):
             segments = job_data.get("segments", [])
             source_lang = job_data.get("language")
         else:
             segments = self._load_segments_from_disk(job_id)
-            source_lang = None
+            source_lang = job_data.get("language") if job_data else None
 
         if not segments:
             raise TranslationException(f"Job '{job_id}' not found or completed transcript files are missing.")

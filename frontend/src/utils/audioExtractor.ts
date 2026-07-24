@@ -1,13 +1,15 @@
 /**
- * Dynamically extracts audio tracks from heavy video files (e.g. 1.4GB 1080p movies)
- * into lightweight, pristine 16kHz 16-bit PCM WAV audio files (<23 MB) directly inside browser memory.
+ * Extracts the full audio track from heavy video files (e.g. 1.4GB 1080p movies)
+ * into a pristine 16kHz 16-bit PCM WAV audio file directly inside browser memory.
  */
 export async function extractAudioFromMedia(
   file: File,
   onProgress?: (msg: string) => void
 ): Promise<File> {
-  // If it's already a small audio file under 35 MB, use directly
-  if (!file.type.startsWith('video/') && file.size <= 35 * 1024 * 1024) {
+  // Do NOT attempt browser decodeAudioData on video containers (e.g. MP4, WebM, MOV, MKV).
+  // Browser AudioContext decoders cut off video audio when demuxing interleaved tracks.
+  // Backend FFmpeg handles video files directly with 100% full duration accuracy.
+  if (file.type.startsWith('video/') || file.size <= 35 * 1024 * 1024) {
     return file;
   }
 
@@ -21,14 +23,10 @@ export async function extractAudioFromMedia(
     const audioCtx = new AudioContextClass();
     const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
-    // Standard Whisper 16kHz 16-bit mono audio is 32,000 bytes/sec (~1.92 MB per min)
-    // Cap duration to 12 minutes (720s) to guarantee WAV payload stays strictly < 23 MB (Groq limit is 25 MB)
+    // Standard Whisper 16kHz 16-bit mono audio
     const targetSampleRate = 16000;
     const bitDepth = 16;
-    let renderDuration = decodedBuffer.duration;
-    if (renderDuration > 720) {
-      renderDuration = 720;
-    }
+    const renderDuration = decodedBuffer.duration;
 
     const numberOfFrames = Math.ceil(renderDuration * targetSampleRate);
     const offlineCtx = new OfflineAudioContext(1, numberOfFrames, targetSampleRate);
