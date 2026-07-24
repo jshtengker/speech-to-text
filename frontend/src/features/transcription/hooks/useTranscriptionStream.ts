@@ -24,7 +24,17 @@ export function useTranscriptionStream(jobId: string, onCompleted?: () => void) 
           setStatus(data.status);
           if (data.execution_time) setExecutionTime(data.execution_time);
           if (data.error) setErrorMsg(data.error);
-          if (data.status === 'completed' && onCompleted) onCompleted();
+          if (data.status === 'completed') {
+            fetch(`${baseUrl}/api/jobs/${jobId}/segments?page=1&limit=500`)
+              .then(res => res.ok ? res.json() : null)
+              .then(segData => {
+                if (isMounted && segData?.segments) {
+                  setSegments(segData.segments);
+                }
+              })
+              .catch(() => {});
+            if (onCompleted) onCompleted();
+          }
         }
       })
       .catch(() => {});
