@@ -271,6 +271,16 @@ class TranslationManager:
         return engines
 
     def _load_segments_from_disk(self, job_id: str) -> List[Dict[str, Any]]:
+        json_file = settings.OUTPUTS_DIR / f"{job_id}.json"
+        if json_file.exists():
+            try:
+                with open(json_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if data.get("segments"):
+                        return data.get("segments")
+            except Exception as e:
+                logger.warning(f"Failed to read JSON file from disk for job {job_id}: {e}")
+
         srt_file = settings.OUTPUTS_DIR / f"{job_id}.srt"
         if not srt_file.exists():
             return []
