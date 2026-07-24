@@ -127,7 +127,21 @@ class GroqTranscriptionService:
             chunks = _split_wav_file(media_path)
             raw_segments = []
             detected_lang = "EN"
-            primary_language = language.strip().lower() if language and language.strip() else None
+            primary_language = None
+            if language and language.strip():
+                lang_clean = language.strip().lower()
+                lang_map = {
+                    "english": "en", "indonesian": "id", "korean": "ko", "japanese": "ja",
+                    "spanish": "es", "french": "fr", "german": "de", "chinese": "zh",
+                    "italian": "it", "portuguese": "pt", "dutch": "nl", "russian": "ru",
+                    "arabic": "ar", "hindi": "hi", "vietnamese": "vi", "thai": "th",
+                    "turkish": "tr", "polish": "pl", "swedish": "sv", "danish": "da",
+                    "finnish": "fi", "norwegian": "no", "greek": "el", "czech": "cs", "hungarian": "hu"
+                }
+                primary_language = lang_map.get(lang_clean, lang_clean)
+                # If language code is longer than 3 chars and unmapped, ignore it so Groq auto-detects instead of throwing 400
+                if len(primary_language) > 3:
+                    primary_language = None
 
             for chunk_idx, (chunk_path, time_offset) in enumerate(chunks):
                 with open(chunk_path, "rb") as file_obj:
