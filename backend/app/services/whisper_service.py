@@ -95,6 +95,32 @@ def run_whisper_worker(
                 f_srt.write(f"{index}\n{start_str} --> {end_str}\n{seg_text}\n\n")
 
         elapsed = round(time.time() - start_time, 2)
+
+        import json
+        json_path = outputs_dir / f"{job_id}.json"
+        job_json_data = {
+            "job_id": job_id,
+            "filename": Path(media_path_str).name,
+            "model": model_name,
+            "status": "completed",
+            "created_at": start_time,
+            "completed_at": time.time(),
+            "execution_time": elapsed,
+            "language": detected_lang,
+            "language_probability": prob,
+            "total_segments": len(segment_list),
+            "segments": segment_list,
+            "downloads": {
+                "txt": f"/api/download/{job_id}/txt",
+                "srt": f"/api/download/{job_id}/srt"
+            }
+        }
+        try:
+            with open(json_path, "w", encoding="utf-8") as f_json:
+                json.dump(job_json_data, f_json, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
+
         ipc_queue.put({"event": "complete", "data": {
             "status": "completed",
             "execution_time": elapsed,
