@@ -19,10 +19,13 @@ async def translate_transcript(payload: TranslationRequest):
     DeepL API (Free) or Meta NLLB-200 local fallback.
     """
     try:
+        input_segs = [seg.model_dump() for seg in payload.segments] if payload.segments else None
         result = await translation_manager.translate_job(
             job_id=payload.job_id,
             target_lang_code=payload.target_language,
-            preferred_engine=payload.engine or "auto"
+            preferred_engine=payload.engine or "auto",
+            input_segments=input_segs,
+            source_lang_code=payload.source_language
         )
         return TranslationResponse(**result)
     except TranslationException as exc:

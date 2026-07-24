@@ -322,7 +322,9 @@ class TranslationManager:
         self,
         job_id: str,
         target_lang_code: str,
-        preferred_engine: str = "auto"
+        preferred_engine: str = "auto",
+        input_segments: Optional[List[Dict[str, Any]]] = None,
+        source_lang_code: Optional[str] = None
     ) -> Dict[str, Any]:
         target_code = target_lang_code.upper()
         if target_code not in settings.SUPPORTED_TRANSLATION_LANGUAGES:
@@ -339,13 +341,17 @@ class TranslationManager:
             except Exception as e:
                 logger.warning(f"Failed to read cache file {cached_file}: {e}")
 
-        job_data = job_repo.get_job(job_id)
-        if job_data and job_data.get("segments"):
-            segments = job_data.get("segments", [])
-            source_lang = job_data.get("language")
+        if input_segments and len(input_segments) > 0:
+            segments = input_segments
+            source_lang = source_lang_code
         else:
-            segments = self._load_segments_from_disk(job_id)
-            source_lang = job_data.get("language") if job_data else None
+            job_data = job_repo.get_job(job_id)
+            if job_data and job_data.get("segments"):
+                segments = job_data.get("segments", [])
+                source_lang = job_data.get("language")
+            else:
+                segments = self._load_segments_from_disk(job_id)
+                source_lang = job_data.get("language") if job_data else None
 
         if not segments:
             raise TranslationException(f"Job '{job_id}' not found or completed transcript files are missing.")

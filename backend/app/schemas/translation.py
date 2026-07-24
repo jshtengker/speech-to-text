@@ -6,6 +6,8 @@ class TranslationRequest(BaseModel):
     job_id: str
     target_language: str
     engine: Optional[str] = "auto"
+    segments: Optional[List[SegmentItem]] = None
+    source_language: Optional[str] = None
 
 class TranslationResponse(BaseModel):
     job_id: str

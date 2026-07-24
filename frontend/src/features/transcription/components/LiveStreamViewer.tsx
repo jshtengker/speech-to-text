@@ -15,15 +15,18 @@ const formatDisplayTime = (seconds: number): string => {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
 };
 
+import { TranscribeResponse, TranscriptSegment } from '@/types';
+
 interface LiveStreamViewerProps {
   jobId: string;
   filename: string;
+  initialJob?: TranscribeResponse | null;
   onCompleted: () => void;
   onCancelled?: () => void;
 }
 
-export const LiveStreamViewer: React.FC<LiveStreamViewerProps> = ({ jobId, filename, onCompleted, onCancelled }) => {
-  const { segments, status, isDownloading, languageInfo, executionTime, errorMsg } = useTranscriptionStream(jobId, onCompleted);
+export const LiveStreamViewer: React.FC<LiveStreamViewerProps> = ({ jobId, filename, initialJob, onCompleted, onCancelled }) => {
+  const { segments, status, isDownloading, languageInfo, executionTime, errorMsg } = useTranscriptionStream(jobId, onCompleted, initialJob);
   const [autoScroll, setAutoScroll] = useState(true);
   const [isCancelling, setIsCancelling] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -163,7 +166,7 @@ export const LiveStreamViewer: React.FC<LiveStreamViewerProps> = ({ jobId, filen
             </div>
           )
         ) : (
-          segments.map((seg) => (
+          segments.map((seg: TranscriptSegment) => (
             <div key={seg.index} className="flex items-start gap-3 hover:bg-[#181614] p-2 rounded-lg transition-colors group border border-transparent hover:border-[#2b2823]">
               <span className="px-2 py-0.5 rounded-md bg-[#201e1b] text-[#c8864a] text-[10px] font-mono border border-[#2b2823] shrink-0 font-medium">
                 [{formatDisplayTime(seg.start)} → {formatDisplayTime(seg.end)}]
