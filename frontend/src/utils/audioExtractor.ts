@@ -6,10 +6,8 @@ export async function extractAudioFromMedia(
   file: File,
   onProgress?: (msg: string) => void
 ): Promise<File> {
-  // Do NOT attempt browser decodeAudioData on video containers (e.g. MP4, WebM, MOV, MKV).
-  // Browser AudioContext decoders cut off video audio when demuxing interleaved tracks.
-  // Backend FFmpeg handles video files directly with 100% full duration accuracy.
-  if (file.type.startsWith('video/') || file.size <= 35 * 1024 * 1024) {
+  // If the file is under 45 MB, pass directly (fits within Supabase Storage 50 MB limit)
+  if (file.size <= 45 * 1024 * 1024) {
     return file;
   }
 
