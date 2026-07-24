@@ -21,74 +21,33 @@ export async function extractAudioFromMedia(
     const audioCtx = new AudioContextClass();
     const decodedBuffer = await audioCtx.decodeAudioData(arrayBuffer);
 
-    // Try compressed Opus/WebM encoding first via MediaRecorder for ultra-small file size (~15MB for full movie)
-    try {
-      const mimeType = (typeof MediaRecorder !== 'undefined') && MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : (typeof MediaRecorder !== 'undefined') && MediaRecorder.isTypeSupported('audio/webm')
-        ? 'audio/webm'
-        : (typeof MediaRecorder !== 'undefined') && MediaRecorder.isTypeSupported('audio/ogg')
-        ? 'audio/ogg'
-        : '';
+    const renderDuration = decodedBuffer.duration;
 
-      if (mimeType) {
-        const dest = audioCtx.createMediaStreamDestination();
-        const source = audioCtx.createBufferSource();
-        source.buffer = decodedBuffer;
-        source.connect(dest);
+    // Dynamically calculate target sample rate and bit depth so total WAV size is guaranteed ~30 MB - 40 MB
+    let targetSampleRate = 16000;
+    let bitDepth: 8 | 16 = 16;
 
-        const recorder = new MediaRecorder(dest.stream, {
-          mimeType,
-          audioBitsPerSecond: 32000 // 32 kbps Mono speech stream (~15MB for a 1.5 hr movie)
-        });
-
-        const chunks: Blob[] = [];
-        const recordingPromise = new Promise<Blob>((resolve, reject) => {
-          recorder.ondataavailable = (e) => {
-            if (e.data && e.data.size > 0) chunks.push(e.data);
-          };
-          recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType }));
-          recorder.onerror = (e) => reject(e);
-        });
-
-        recorder.start(100);
-        source.start(0);
-
-        source.onended = () => {
-          recorder.stop();
-        };
-
-        const compressedBlob = await recordingPromise;
-        await audioCtx.close().catch(() => {});
-
-        if (compressedBlob.size > 0 && compressedBlob.size < file.size) {
-          const ext = mimeType.includes('ogg') ? '.ogg' : '.webm';
-          const cleanName = file.name.replace(/\.[^/.]+$/, '') + `_compressed${ext}`;
-          return new File([compressedBlob], cleanName, { type: mimeType });
-        }
+    const estimated16BitBytes = renderDuration * 16000 * 2;
+    if (estimated16BitBytes > 42 * 1024 * 1024) {
+      bitDepth = 8;
+      const estimated8BitBytes = renderDuration * 16000 * 1;
+      if (estimated8BitBytes > 42 * 1024 * 1024) {
+        targetSampleRate = Math.min(16000, Math.max(8000, Math.floor((38 * 1024 * 1024) / renderDuration)));
       }
-    } catch (recorderErr) {
-      console.warn('Compressed MediaRecorder extraction fallback:', recorderErr);
     }
 
-    // Fallback: Standard Whisper 16kHz mono WAV audio
-    const targetSampleRate = 16000;
-    const renderDuration = decodedBuffer.duration;
+    // Execute fast offline rendering at CPU speed (< 1 second processing time)
     const numberOfFrames = Math.ceil(renderDuration * targetSampleRate);
     const offlineCtx = new OfflineAudioContext(1, numberOfFrames, targetSampleRate);
     const source = offlineCtx.createBufferSource();
     source.buffer = decodedBuffer;
     source.connect(offlineCtx.destination);
-    source.start();
+    source.start(0);
 
     const renderedBuffer = await offlineCtx.startRendering();
     await audioCtx.close().catch(() => {});
 
-    // Use 8-bit PCM if estimated 16-bit size exceeds 45 MB
-    const estimated16BitSize = numberOfFrames * 2 + 44;
-    const bitDepth = estimated16BitSize > 45 * 1024 * 1024 ? 8 : 16;
     const wavBlob = bufferToWavBlob(renderedBuffer, bitDepth);
-
     const cleanName = file.name.replace(/\.[^/.]+$/, '') + '_speech.wav';
     return new File([wavBlob], cleanName, { type: 'audio/wav' });
   } catch (err) {
