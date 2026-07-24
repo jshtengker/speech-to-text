@@ -59,6 +59,7 @@ export function App() {
             key={activeJob.job_id}
             jobId={activeJob.job_id}
             filename={activeJob.filename}
+            initialJob={activeJob}
             onCompleted={handleJobCompleted}
             onCancelled={handleJobCancelled}
           />

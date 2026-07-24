@@ -1,11 +1,19 @@
 import { useState, useEffect } from 'react';
-import { TranscriptSegment } from '@/types';
+import { TranscribeResponse, TranscriptSegment } from '@/types';
 
-export function useTranscriptionStream(jobId: string, onCompleted?: () => void) {
-  const [segments, setSegments] = useState<TranscriptSegment[]>([]);
-  const [status, setStatus] = useState<'pending' | 'loading_model' | 'processing' | 'completed' | 'failed' | 'cancelled'>('processing');
+export function useTranscriptionStream(
+  jobId: string,
+  onCompleted?: () => void,
+  initialJob?: TranscribeResponse | null
+) {
+  const [segments, setSegments] = useState<TranscriptSegment[]>(initialJob?.segments || []);
+  const [status, setStatus] = useState<'pending' | 'loading_model' | 'processing' | 'completed' | 'failed' | 'cancelled'>(
+    (initialJob?.status as 'pending' | 'loading_model' | 'processing' | 'completed' | 'failed' | 'cancelled') || 'processing'
+  );
   const [isDownloading, setIsDownloading] = useState(false);
-  const [languageInfo, setLanguageInfo] = useState<{ language: string; probability: number } | null>(null);
+  const [languageInfo, setLanguageInfo] = useState<{ language: string; probability: number } | null>(
+    initialJob?.language ? { language: initialJob.language, probability: 1.0 } : null
+  );
   const [executionTime, setExecutionTime] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -64,7 +72,7 @@ export function useTranscriptionStream(jobId: string, onCompleted?: () => void) 
 
     eventSource.addEventListener('segment', (e: Event) => {
       const seg: TranscriptSegment = JSON.parse((e as MessageEvent).data);
-      setSegments((prev) => [...prev, seg]);
+      setSegments((prev: TranscriptSegment[]) => [...prev, seg]);
     });
 
     eventSource.addEventListener('complete', (e: Event) => {

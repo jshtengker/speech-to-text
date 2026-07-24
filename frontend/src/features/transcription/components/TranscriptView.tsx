@@ -130,6 +130,8 @@ export const TranscriptView: React.FC<TranscriptViewProps> = ({ jobId, initialJo
     <div className="glass-panel rounded-2xl p-6 sm:p-8 border border-[#2b2823] shadow-2xl animate-fade-in">
       <TranslationSelector
         jobId={jobId}
+        segments={originalSegments}
+        sourceLanguage={jobStatus?.language || undefined}
         onTranslationSuccess={handleTranslationSuccess}
         isTranslating={isTranslating}
         setIsTranslating={setIsTranslating}

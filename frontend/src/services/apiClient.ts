@@ -26,7 +26,9 @@ import { ModelListResponse } from '@/types';
 export async function translateTranscript(
   jobId: string,
   targetLanguage: string,
-  engine: string = 'auto'
+  engine: string = 'auto',
+  segments?: import('../types').TranscriptSegment[],
+  sourceLanguage?: string
 ) {
   return apiFetch<import('../types').TranslationResponse>('/api/translate', {
     method: 'POST',
@@ -37,6 +39,8 @@ export async function translateTranscript(
       job_id: jobId,
       target_language: targetLanguage,
       engine: engine,
+      segments: segments && segments.length > 0 ? segments : undefined,
+      source_language: sourceLanguage || undefined,
     }),
   });
 }

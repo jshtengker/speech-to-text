@@ -38,6 +38,7 @@ export interface TranscribeResponse {
   model?: string;
   status: string;
   message: string;
+  language?: string | null;
   segments?: TranscriptSegment[];
   downloads?: {
     txt: string;

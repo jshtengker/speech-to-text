@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { getTranslationLanguages, translateTranscript } from '../../../services/apiClient';
-import { LanguageOption, EngineOption, TranslationResponse } from '../../../types';
+import { LanguageOption, EngineOption, TranslationResponse, TranscriptSegment } from '../../../types';
 
 interface TranslationSelectorProps {
   jobId: string;
+  segments?: TranscriptSegment[];
+  sourceLanguage?: string;
   onTranslationSuccess: (response: TranslationResponse) => void;
   onTranslationClear?: () => void;
   isTranslating: boolean;
@@ -13,6 +15,8 @@ interface TranslationSelectorProps {
 
 export const TranslationSelector: React.FC<TranslationSelectorProps> = ({
   jobId,
+  segments,
+  sourceLanguage,
   onTranslationSuccess,
   onTranslationClear,
   isTranslating,
@@ -46,7 +50,7 @@ export const TranslationSelector: React.FC<TranslationSelectorProps> = ({
     setError(null);
 
     try {
-      const res = await translateTranscript(jobId, selectedLang, selectedEngine);
+      const res = await translateTranscript(jobId, selectedLang, selectedEngine, segments, sourceLanguage);
       onTranslationSuccess(res);
       refreshData();
     } catch (err: unknown) {
